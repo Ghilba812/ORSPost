@@ -8,7 +8,7 @@ import './style.css';
 // ====== CONFIG ======
 const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY;
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:3000';
-window.mapboxgl = maplibregl;
+
 // ====== MAP ======
 const map = new maplibregl.Map({
   container: 'map',
@@ -17,17 +17,27 @@ const map = new maplibregl.Map({
   zoom: 12
 });
 
-// add navigation
-map.addControl(new maplibregl.NavigationControl(), 'top-right');
+window.mapboxgl = maplibregl;
+map.on('load', async () => {
+  // controls (safe to add here)
+  map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
-// tambahin ruler
-const ruler = new RulerControl({ units: 'kilometers' }); 
-map.addControl(ruler, 'bottom-right');
+  const ruler = new RulerControl({ units: 'kilometers' });
+  map.addControl(ruler, 'bottom-right');
 
-// optional: cek event
-map.on('ruler.on', () => console.log('Ruler aktif'));
-map.on('ruler.off', () => console.log('Ruler nonaktif'));
+  // watch ruler state to avoid click conflicts
+  let rulerActive = false;
+  map.on('ruler.on',  () => { rulerActive = true;  console.log('Ruler aktif'); });
+  map.on('ruler.off', () => { rulerActive = false; console.log('Ruler nonaktif'); });
 
+  // ... your sources/layers/load billboards (keep existing code) ...
+
+  // guard: don't fire billboard clicks while measuring
+  map.on('click','billboards', (e) => {
+    if (rulerActive) return;
+    onBillboardClick(e);
+  });
+});
 
 // health check
 const apiStatusEl = document.getElementById('apiStatus');
@@ -74,34 +84,40 @@ updateUIVisibility();
 // ====== SOURCES / LAYERS ======
 map.on('load', async () => {
   // isochrone layers
-  map.addSource('iso', { type:'geojson', data:{ type:'FeatureCollection', features:[] }});
-  map.addLayer({ id:'iso-fill', type:'fill', source:'iso',
-    paint:{ 'fill-color':'#4b61d1', 'fill-opacity':0.28 }});
-  map.addLayer({ id:'iso-outline', type:'line', source:'iso',
-    paint:{ 'line-color':'#2f3e8f', 'line-width':1 }});
+  map.addSource('iso', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  map.addLayer({
+    id: 'iso-fill', type: 'fill', source: 'iso',
+    paint: { 'fill-color': '#4b61d1', 'fill-opacity': 0.28 }
+  });
+  map.addLayer({
+    id: 'iso-outline', type: 'line', source: 'iso',
+    paint: { 'line-color': '#2f3e8f', 'line-width': 1 }
+  });
 
   // billboards
-  map.addSource('billboards', { type:'geojson', data:{ type:'FeatureCollection', features:[] }});
-  map.addLayer({ id:'billboards', type:'circle', source:'billboards',
-    paint:{ 'circle-radius':5, 'circle-color':'#e4572e', 'circle-stroke-width':1, 'circle-stroke-color':'#fff' }});
+  map.addSource('billboards', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  map.addLayer({
+    id: 'billboards', type: 'circle', source: 'billboards',
+    paint: { 'circle-radius': 5, 'circle-color': '#e4572e', 'circle-stroke-width': 1, 'circle-stroke-color': '#fff' }
+  });
 
   // load billboard points
   const pts = await fetch(`${API_BASE}/api/billboards`).then(r => r.json());
   map.getSource('billboards').setData({
-    type:'FeatureCollection',
+    type: 'FeatureCollection',
     features: pts.map(b => ({
-      type:'Feature',
-      geometry:{ type:'Point', coordinates:[+b.lon, +b.lat] },
-      properties:{ id:b.id, address:b.address || '' }
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [+b.lon, +b.lat] },
+      properties: { id: b.id, address: b.address || '' }
     }))
   });
 
-  map.on('mouseenter','billboards',() => map.getCanvas().style.cursor='pointer');
-  map.on('mouseleave','billboards',() => map.getCanvas().style.cursor='');
-  map.on('click','billboards', onBillboardClick);
+  map.on('mouseenter', 'billboards', () => map.getCanvas().style.cursor = 'pointer');
+  map.on('mouseleave', 'billboards', () => map.getCanvas().style.cursor = '');
+  map.on('click', 'billboards', onBillboardClick);
 });
 
-async function onBillboardClick(e){
+async function onBillboardClick(e) {
   const f = e.features[0];
   const id = Number(f.properties.id);
   const address = f.properties.address || '';        // <— ambil address
@@ -116,51 +132,68 @@ async function onBillboardClick(e){
 
   map.flyTo({ center: f.geometry.coordinates, zoom: Math.max(map.getZoom(), 12) });
 
-  showInsight({ loading:true, id, mode, minutes, distance_km, profile, traffic });
+  showInsight({ loading: true, id, mode, minutes, distance_km, profile, traffic });
 
   try {
     // build/fetch isochrone
     const iso = await fetch(`${API_BASE}/api/isochrone${nocache}`, {
-      method:'POST',
-      headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify({ billboard_id:id, mode, minutes, distance_km, profile, traffic, avoidHighways })
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ billboard_id: id, mode, minutes, distance_km, profile, traffic, avoidHighways })
     }).then(r => r.json());
 
     if (iso?.feature?.geometry) {
-      map.getSource('iso').setData({ type:'FeatureCollection', features:[iso.feature] });
+      map.getSource('iso').setData({ type: 'FeatureCollection', features: [iso.feature] });
     } else {
-      map.getSource('iso').setData({ type:'FeatureCollection', features:[] });
+      map.getSource('iso').setData({ type: 'FeatureCollection', features: [] });
     }
 
     // insights
     const out = await fetch(`${API_BASE}/api/iso-insights`, {
-      method:'POST',
-      headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify({ billboard_id:id, mode, minutes, distance_km, profile, traffic, avoidHighways })
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ billboard_id: id, mode, minutes, distance_km, profile, traffic, avoidHighways })
     }).then(r => r.json());
 
     showInsight({
-      loading:false, id, address, mode, minutes, distance_km, profile, traffic,
+      loading: false, id, address, mode, minutes, distance_km, profile, traffic,
       population: out?.population ?? 0,
+      poi_groups: out?.poi_groups ?? [],
       categories: out?.categories ?? []
     });
-  } catch(err){
+  } catch (err) {
     console.error(err);
-    showInsight({ error:true });
+    showInsight({ error: true });
   }
 }
+// =============== render helper ===============
+function renderPoiGroups(poi_groups) {
+  if (!Array.isArray(poi_groups) || poi_groups.length === 0) {
+    return '<i>No POI found</i>';
+  }
+  return poi_groups.map(g => {
+    const itemsHtml = g.items
+      .map(it => `${esc(it.category)}: <b>${Number(it.count).toLocaleString()}</b>`)
+      .join('<br/>');
+    return `
+      <div style="margin:6px 0;">
+        <div><b>${esc(g.group)}</b> — <span class="muted">${Number(g.total).toLocaleString()}</span></div>
+        <div style="margin-left:10px">${itemsHtml}</div>
+      </div>
+    `;
+  }).join('');
+}
 function esc(s) {
-  return String(s || '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-} 
+  return String(s || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+}
 
-function showInsight(opts){
+function showInsight(opts) {
   if (opts.loading) {
     insightEl.innerHTML = `
       <div><b>Billboard #${opts.id}</b><br>
         <span class="muted">${esc(opts.address) || '<i>no address</i>'}</span>
       </div>
-      Generating <code>${opts.profile}</code> — ${
-        opts.mode === 'time' ? `${opts.minutes} min` : `${opts.distance_km} km`
+      Generating <code>${opts.profile}</code> — ${opts.mode === 'time' ? `${opts.minutes} min` : `${opts.distance_km} km`
       } — traffic <code>${opts.traffic}</code>…
     `;
     return;
@@ -170,22 +203,20 @@ function showInsight(opts){
     return;
   }
 
-  const list = (opts.categories||[])
-    .map(c => `${c.category}: <b>${Number(c.count).toLocaleString()}</b>`)
-    .join('<br/>') || '<i>No POI found</i>';
+  const poiHtml = renderPoiGroups(opts.poi_groups);
 
   insightEl.innerHTML = `
     <div><b>Billboard #${opts.id}</b><br>
-    <span class="muted">${esc(opts.address) || '<i>no address</i>'}</span>
+      <span class="muted">${esc(opts.address) || '<i>no address</i>'}</span>
     </div>
     <div class="muted">Mode: <b>${opts.mode}</b> —
-      ${opts.mode==='time' ? `${opts.minutes} min` : `${opts.distance_km} km`}
+      ${opts.mode === 'time' ? `${opts.minutes} min` : `${opts.distance_km} km`}
     </div>
     <div>Profile: <code>${opts.profile}</code></div>
     <div>Traffic: <code>${opts.traffic}</code></div>
-    <div style="margin-top:6px;">Population: <b>${Number(opts.population||0).toLocaleString()}</b></div>
+    <div style="margin-top:6px;">Population: <b>${Number(opts.population || 0).toLocaleString()}</b></div>
     <div style="margin-top:6px;"><b>POI</b>:</div>
-    <div>${list}</div>
+    <div>${poiHtml}</div>
   `;
 }
 

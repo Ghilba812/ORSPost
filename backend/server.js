@@ -21,12 +21,12 @@ const pool = new pg.Pool({
 });
 
 process.on('unhandledRejection', e => console.error('UNHANDLED REJECTION:', e));
-process.on('uncaughtException',  e => console.error('UNCAUGHT EXCEPTION:',  e));
+process.on('uncaughtException', e => console.error('UNCAUGHT EXCEPTION:', e));
 
 /* ============ Helpers ============ */
 const TRAFFIC_FACTOR = { normal: 1.0, light: 0.75, moderate: 0.5, heavy: 0.25 };
 
-function toBool(x, fallback=false){
+function toBool(x, fallback = false) {
   if (typeof x === 'boolean') return x;
   if (x === 'true' || x === '1') return true;
   if (x === 'false' || x === '0') return false;
@@ -77,8 +77,8 @@ app.post('/api/isochrone', async (req, res) => {
     if (!billboard_id) throw new Error('billboard_id is required');
 
     const factor = TRAFFIC_FACTOR[traffic] ?? 1.0;
-    const base_s  = Math.max(1, Math.round(Number(minutes) * 60));
-    const range_s = (mode === 'time')     ? Math.max(1, Math.round(base_s * factor)) : 0;
+    const base_s = Math.max(1, Math.round(Number(minutes) * 60));
+    const range_s = (mode === 'time') ? Math.max(1, Math.round(base_s * factor)) : 0;
     const range_m = (mode === 'distance') ? Math.max(1, Math.round(Number(distance_km) * 1000)) : 0;
 
     const noCache = req.query?.nocache === '1' || req.query?.nocache === 'true';
@@ -104,7 +104,7 @@ app.post('/api/isochrone', async (req, res) => {
             type: 'Feature',
             properties: {
               billboard_id, mode, profile, avoidHighways, traffic,
-              minutes: range_s/60, distance_km: range_m/1000
+              minutes: range_s / 60, distance_km: range_m / 1000
             },
             geometry: JSON.parse(rCache.rows[0].gj)
           }
@@ -172,7 +172,7 @@ app.post('/api/isochrone', async (req, res) => {
         type: 'Feature',
         properties: {
           billboard_id, mode, profile, avoidHighways, traffic,
-          minutes: range_s/60, distance_km: range_m/1000
+          minutes: range_s / 60, distance_km: range_m / 1000
         },
         geometry: outGeom
       }
@@ -200,8 +200,8 @@ app.post('/api/iso-insights', async (req, res) => {
     if (!billboard_id) throw new Error('billboard_id is required');
 
     const factor = TRAFFIC_FACTOR[traffic] ?? 1.0;
-    const range_s = (mode === 'time') ? Math.max(1, Math.round(Number(minutes)*60*factor)) : 0;
-    const range_m = (mode === 'distance') ? Math.max(1, Math.round(Number(distance_km)*1000)) : 0;
+    const range_s = (mode === 'time') ? Math.max(1, Math.round(Number(minutes) * 60 * factor)) : 0;
+    const range_m = (mode === 'distance') ? Math.max(1, Math.round(Number(distance_km) * 1000)) : 0;
 
     const gq = `
       SELECT ST_AsGeoJSON(geom) AS gj
@@ -242,21 +242,42 @@ app.post('/api/iso-insights', async (req, res) => {
     // POI breakdown
     const poiSql = `
       WITH iso AS (SELECT ST_SetSRID(ST_GeomFromGeoJSON($1),4326) AS g)
-      SELECT p.category, COUNT(*)::bigint AS cnt
+      SELECT
+        COALESCE(p.category_group, 'Other') AS g,
+        COALESCE(p.category, 'Unknown') AS c,
+        COUNT(*)::bigint AS cnt
       FROM webgis.poi2 p, iso
       WHERE ST_Within(p.geom, iso.g)
-        ${Array.isArray(categories) && categories.length ? 'AND p.category = ANY($2)' : ''}
-      GROUP BY p.category  
-      ORDER BY cnt DESC
-      LIMIT 50
+        ${Array.isArray(categories) && categories.length ? 'AND p.category_group = ANY($2)' : ''}
+      GROUP BY 1, 2
+      ORDER BY g ASC, cnt DESC
     `;
-    const poiRes = Array.isArray(categories) && categories.length
+
+    const poiRows = Array.isArray(categories) && categories.length
       ? await pool.query(poiSql, [isoGeom, categories])
       : await pool.query(poiSql, [isoGeom]);
 
+    // Bentuk nested: [{ group:'Medical', total: 120, items:[{category:'Hospital', count:40}, ...] }, ...]
+    const groupsMap = new Map();
+    for (const r of poiRows.rows) {
+      const g = r.g;
+      const c = r.c;
+      const n = Number(r.cnt);
+      if (!groupsMap.has(g)) groupsMap.set(g, { group: g, total: 0, items: [] });
+      const bucket = groupsMap.get(g);
+      bucket.total += n;
+      bucket.items.push({ category: c, count: n });
+    }
+
+    // sort items di tiap group (desc) dan group-nya juga (desc by total)
+    const poiGrouped = Array.from(groupsMap.values())
+      .map(g => ({ ...g, items: g.items.sort((a, b) => b.count - a.count) }))
+      .sort((a, b) => b.total - a.total);
+
     res.json({
       population,
-      categories: poiRes.rows.map(r => ({ category: r.category, count: Number(r.cnt) })),
+      categories: poiRows.rows.map(r => ({ category: r.c, count: Number(r.cnt) })),
+      poi_groups: poiGrouped,
       isochrone: JSON.parse(isoGeom)
     });
   } catch (err) {
