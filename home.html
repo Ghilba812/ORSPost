@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Isochrone WebGIS</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- MapLibre -->
+  <link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet" />
+  <script src="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.js"></script>
+
+  <style>
+    html, body, #map { height: 100%; margin: 0; }
+    .panel {
+      position:absolute; top:10px; left:10px; z-index:3;
+      background:#fff; padding:10px 12px; border-radius:8px;
+      box-shadow:0 2px 10px rgba(0,0,0,.15);
+      font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      width: 300px; max-height: 90vh; overflow:auto;
+    }
+    .muted { color:#6b7280; }
+    .ok { color:#0a7a0a; } .bad { color:#b00020; }
+    .row { margin: 6px 0; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+    select, input[type="number"] { padding:2px 4px; }
+    code { background:#f2f4f7; padding:1px 4px; border-radius:4px; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <div class="panel">
+    <div><b>API:</b> <span id="apiStatus">checking…</span></div>
+
+    <div class="row">
+      <label>Mode</label>
+      <select id="mode">
+        <option value="time" selected>Time (minutes)</option>
+        <option value="distance">Distance (km)</option>
+      </select>
+
+      <label id="lbl-min">Minutes</label>
+      <input id="minutes" type="number" value="10" min="1" max="60" style="width:66px;" />
+
+      <label id="lbl-dist" style="display:none;">Km</label>
+      <input id="distance_km" type="number" value="2" min="0.1" max="20" step="0.1" style="width:66px; display:none;" />
+    </div>
+
+    <div class="row" id="row-profile">
+      <label>Profile</label>
+      <select id="profile" style="width:130px;">
+        <option value="driving-car" selected>driving-car</option>
+        <option value="cycling-regular">cycling-regular</option>
+        <option value="foot-walking">foot-walking</option>
+      </select>
+    </div>
+
+    <div class="row" id="row-traffic">
+      <label>Traffic</label>
+      <select id="traffic" style="width:130px;">
+        <option value="normal">Normal (1.0)</option>
+        <option value="light">Rendah (0.75)</option>
+        <option value="moderate">Sedang (0.50)</option>
+        <option value="heavy" selected>Padat (0.25)</option>
+      </select>
+    </div>
+
+    <div class="row" id="row-avoid">
+      <label><input id="avoidHighways" type="checkbox" /> avoid highways</label>
+      <label class="muted" title="Bypass server cache untuk debugging">
+        <input id="nocache" type="checkbox" /> nocache (debug)
+      </label>
+    </div>
+
+    <div class="row" style="margin-top:6px;">
+      <button id="clearBtn" style="padding:4px 10px; cursor:pointer;">Clear</button>
+    </div>
+
+    <div class="muted" style="margin:8px 0 10px;">
+      <div><b>Tips:</b></div>
+      <div>• <b>Time 10 min</b> ≈ radius iklan cepat <b>±2–3 km</b> (kota besar).</div>
+      <div>• Toggle <i>avoid highways</i> untuk hasil realistis di dalam kota.</div>
+      <div>• Gunakan <i>Traffic</i> untuk pilihan kemacetan.</div>
+    </div>
+
+    <div id="insight" class="muted">Klik titik billboard untuk melihat isochrone & insight.</div>
+  </div>
+
+  <script>
+    // ==== CONFIG ====
+    const MAPTILER_KEY = 'uB1xPzkkEbN7p3tvPchy'; // ganti dengan key kamu
+    const API_BASE = 'http://127.0.0.1:3000';
+
+    // ==== MAP ====
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: `https://api.maptiler.com/maps/streets-v2/style.json?key=${MAPTILER_KEY}`,
+      center: [107.6098, -6.9147], // Bandung
+      zoom: 12
+    });
+
+    // health check
+    const apiStatusEl = document.getElementById('apiStatus');
+    fetch(`${API_BASE}/healthz`).then(r => r.ok ? r.json() : Promise.reject())
+      .then(() => { apiStatusEl.textContent = 'OK'; apiStatusEl.className = 'ok'; })
+      .catch(() => { apiStatusEl.textContent = 'OFFLINE'; apiStatusEl.className = 'bad'; });
+
+    // inputs
+    const modeSel = document.getElementById('mode');
+    const minutesInput = document.getElementById('minutes');
+    const distanceInput = document.getElementById('distance_km');
+    const lblMin = document.getElementById('lbl-min');
+    const lblDist = document.getElementById('lbl-dist');
+    const profileSel = document.getElementById('profile');
+    const trafficSel = document.getElementById('traffic');
+    const avoidCb = document.getElementById('avoidHighways');
+    const nocacheCb = document.getElementById('nocache');
+    const insightEl = document.getElementById('insight');
+    const rowProfile = document.getElementById('row-profile');
+
+    function updateUIVisibility() {
+      const isTime = modeSel.value === 'time';
+      const isFoot = profileSel.value === 'foot-walking';
+
+      // toggle time vs distance inputs
+      minutesInput.style.display = isTime ? '' : 'none';
+      lblMin.style.display = isTime ? '' : 'none';
+      distanceInput.style.display = isTime ? 'none' : '';
+      lblDist.style.display = isTime ? 'none' : '';
+
+      // toggle traffic
+      if (!isTime || isFoot) {
+        document.getElementById('row-traffic').style.display = 'none';
+      } else {
+        document.getElementById('row-traffic').style.display = '';
+      }
+
+      // toggle avoidHighways
+      if (!isTime || isFoot) {
+        document.getElementById('row-avoid').style.display = 'none';
+      } else {
+        document.getElementById('row-avoid').style.display = '';
+      }
+        // kalau distance → sembunyikan profile
+      rowProfile.style.display = isTime ? '' : 'none';
+    }
+
+    // panggil setiap kali ada perubahan
+    modeSel.addEventListener('change', updateUIVisibility);
+    profileSel.addEventListener('change', updateUIVisibility);
+
+    // panggil sekali di awal
+    updateUIVisibility();
+
+
+    // ==== SOURCES / LAYERS ====
+    map.on('load', async () => {
+      map.addSource('iso', { type:'geojson', data:{ type:'FeatureCollection', features:[] }});
+      map.addLayer({ id:'iso-fill', type:'fill', source:'iso',
+        paint:{ 'fill-color':'#4b61d1', 'fill-opacity':0.28 }});
+      map.addLayer({ id:'iso-outline', type:'line', source:'iso',
+        paint:{ 'line-color':'#2f3e8f', 'line-width':1 }});
+
+      map.addSource('billboards', { type:'geojson', data:{ type:'FeatureCollection', features:[] }});
+      map.addLayer({ id:'billboards', type:'circle', source:'billboards',
+        paint:{ 'circle-radius':5, 'circle-color':'#e4572e', 'circle-stroke-width':1, 'circle-stroke-color':'#fff' }});
+
+      const pts = await fetch(`${API_BASE}/api/billboards`).then(r => r.json());
+      map.getSource('billboards').setData({
+        type:'FeatureCollection',
+        features: pts.map(b => ({
+          type:'Feature',
+          geometry:{ type:'Point', coordinates:[+b.lon, +b.lat] },
+          properties:{ id:b.id, address:b.address }
+        }))
+      });
+
+      map.on('mouseenter','billboards',() => map.getCanvas().style.cursor='pointer');
+      map.on('mouseleave','billboards',() => map.getCanvas().style.cursor='');
+
+      map.on('click','billboards', onBillboardClick);
+    });
+
+    async function onBillboardClick(e){
+      const f = e.features[0];
+      const id = Number(f.properties.id);
+
+      const mode = modeSel.value;
+      const minutes = Number(minutesInput.value) || 10;
+      const distance_km = Number(distanceInput.value) || 2;
+      const profile = profileSel.value;
+      const traffic = trafficSel.value;
+      const avoidHighways = !!avoidCb.checked;
+      const nocache = nocacheCb.checked ? '?nocache=1' : '';
+
+      map.flyTo({ center: f.geometry.coordinates, zoom: Math.max(map.getZoom(), 12) });
+
+      showInsight({ loading:true, id, mode, minutes, distance_km, profile, traffic });
+
+      try {
+        const iso = await fetch(`${API_BASE}/api/isochrone${nocache}`, {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json' },
+          body: JSON.stringify({ billboard_id:id, mode, minutes, distance_km, profile, traffic, avoidHighways })
+        }).then(r => r.json());
+
+        if (iso?.feature?.geometry) {
+          map.getSource('iso').setData({ type:'FeatureCollection', features:[iso.feature] });
+        } else {
+          map.getSource('iso').setData({ type:'FeatureCollection', features:[] });
+        }
+
+        const out = await fetch(`${API_BASE}/api/iso-insights`, {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json' },
+          body: JSON.stringify({ billboard_id:id, mode, minutes, distance_km, profile, traffic, avoidHighways })
+        }).then(r => r.json());
+
+        showInsight({
+          loading:false, id, mode, minutes, distance_km, profile, traffic,
+          population: out?.population ?? 0,
+          categories: out?.categories ?? []
+        });
+      } catch(err){
+        console.error(err);
+        showInsight({ error:true });
+      }
+    }
+
+    function showInsight(opts){
+      if (opts.loading) {
+        insightEl.innerHTML = `Billboard <b>#${opts.id}</b><br/>
+          Generating <code>${opts.profile}</code> — ${opts.mode === 'time'
+            ? `${opts.minutes} min`
+            : `${opts.distance_km} km`} — traffic <code>${opts.traffic}</code>…`;
+        return;
+      }
+      if (opts.error) {
+        insightEl.innerHTML = `<span class="bad">Error fetching data.</span>`;
+        return;
+      }
+
+      const list = (opts.categories||[])
+        .map(c => `${c.category}: <b>${Number(c.count).toLocaleString()}</b>`)
+        .join('<br/>') || '<i>No POI found</i>';
+
+      insightEl.innerHTML = `
+        <div class="muted">Mode: <b>${opts.mode}</b> —
+          ${opts.mode==='time' ? `${opts.minutes} min` : `${opts.distance_km} km`}
+        </div>
+        <div>Profile: <code>${opts.profile}</code></div>
+        <div>Traffic: <code>${opts.traffic}</code></div>
+        <div style="margin-top:6px;">Population: <b>${Number(opts.population||0).toLocaleString()}</b></div>
+        <div style="margin-top:6px;"><b>POI</b>:</div>
+        <div>${list}</div>
+      `;
+    }
+    // === Clear Button ===
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      // Clear isochrone layer
+      if (map.getSource('iso')) {
+        map.getSource('iso').setData({ type: 'FeatureCollection', features: [] });
+      }
+
+    // Reset panel insight
+      insightEl.innerHTML = 'Klik titik billboard untuk melihat isochrone & insight.';
+    });
+  </script>
+</body>
+</html>
