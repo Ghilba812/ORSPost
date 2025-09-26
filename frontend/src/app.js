@@ -92,7 +92,7 @@ map.on('load', async () => {
     features: pts.map(b => ({
       type:'Feature',
       geometry:{ type:'Point', coordinates:[+b.lon, +b.lat] },
-      properties:{ id:b.id, address:b.address }
+      properties:{ id:b.id, address:b.address || '' }
     }))
   });
 
@@ -104,6 +104,7 @@ map.on('load', async () => {
 async function onBillboardClick(e){
   const f = e.features[0];
   const id = Number(f.properties.id);
+  const address = f.properties.address || '';        // <— ambil address
 
   const mode = modeSel.value;
   const minutes = Number(minutesInput.value) || 10;
@@ -139,7 +140,7 @@ async function onBillboardClick(e){
     }).then(r => r.json());
 
     showInsight({
-      loading:false, id, mode, minutes, distance_km, profile, traffic,
+      loading:false, id, address, mode, minutes, distance_km, profile, traffic,
       population: out?.population ?? 0,
       categories: out?.categories ?? []
     });
@@ -148,13 +149,20 @@ async function onBillboardClick(e){
     showInsight({ error:true });
   }
 }
+function esc(s) {
+  return String(s || '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+} 
 
 function showInsight(opts){
   if (opts.loading) {
-    insightEl.innerHTML = `Billboard <b>#${opts.id}</b><br/>
-      Generating <code>${opts.profile}</code> — ${opts.mode === 'time'
-        ? `${opts.minutes} min`
-        : `${opts.distance_km} km`} — traffic <code>${opts.traffic}</code>…`;
+    insightEl.innerHTML = `
+      <div><b>Billboard #${opts.id}</b><br>
+        <span class="muted">${esc(opts.address) || '<i>no address</i>'}</span>
+      </div>
+      Generating <code>${opts.profile}</code> — ${
+        opts.mode === 'time' ? `${opts.minutes} min` : `${opts.distance_km} km`
+      } — traffic <code>${opts.traffic}</code>…
+    `;
     return;
   }
   if (opts.error) {
@@ -167,6 +175,9 @@ function showInsight(opts){
     .join('<br/>') || '<i>No POI found</i>';
 
   insightEl.innerHTML = `
+    <div><b>Billboard #${opts.id}</b><br>
+    <span class="muted">${esc(opts.address) || '<i>no address</i>'}</span>
+    </div>
     <div class="muted">Mode: <b>${opts.mode}</b> —
       ${opts.mode==='time' ? `${opts.minutes} min` : `${opts.distance_km} km`}
     </div>
