@@ -58,6 +58,24 @@ const nocacheCb = document.getElementById('nocache');
 const insightEl = document.getElementById('insight');
 const rowProfile = document.getElementById('row-profile');
 
+const ALLOWED_MINUTES = [5, 10, 15, 20, 25, 30];
+
+function snapMinutes() {
+  let v = Number(minutesInput.value) || 10;
+  if (v < 5) v = 5;
+  if (v > 30) v = 30;
+  // snap ke nilai terdekat di ALLOWED_MINUTES
+  v = ALLOWED_MINUTES.reduce((p, c) =>
+    Math.abs(c - v) < Math.abs(p - v) ? c : p
+  , ALLOWED_MINUTES[0]);
+  minutesInput.value = v;
+}
+minutesInput.addEventListener('change', snapMinutes);
+modeSel.addEventListener('change', () => {
+  if (modeSel.value === 'time') snapMinutes();
+});
+
+
 function updateUIVisibility() {
   const isTime = modeSel.value === 'time';
   const isFoot = profileSel.value === 'foot-walking';

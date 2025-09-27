@@ -40,6 +40,17 @@ async function getBillboardLonLat(id) {
   return rows[0]; // { lon, lat }
 }
 
+const ALLOWED_MINUTES = [5,10,15,20,25,30];
+function clampMinutes(m) {
+  let v = Number(m);
+  if (!Number.isFinite(v)) v = 10;
+  if (v < 5) v = 5;
+  if (v > 30) v = 30;
+  return ALLOWED_MINUTES.reduce((p, c) =>
+    Math.abs(c - v) < Math.abs(p - v) ? c : p
+  , ALLOWED_MINUTES[0]);
+}
+
 /* ============ Routes ============ */
 
 // 0) health
@@ -76,8 +87,10 @@ app.post('/api/isochrone', async (req, res) => {
 
     if (!billboard_id) throw new Error('billboard_id is required');
 
+    const minutesClamped = clampMinutes(minutes);
+
     const factor = TRAFFIC_FACTOR[traffic] ?? 1.0;
-    const base_s = Math.max(1, Math.round(Number(minutes) * 60));
+    const base_s = Math.max(1, Math.round(Number(minutesClamped) * 60));
     const range_s = (mode === 'time') ? Math.max(1, Math.round(base_s * factor)) : 0;
     const range_m = (mode === 'distance') ? Math.max(1, Math.round(Number(distance_km) * 1000)) : 0;
 
@@ -104,7 +117,7 @@ app.post('/api/isochrone', async (req, res) => {
             type: 'Feature',
             properties: {
               billboard_id, mode, profile, avoidHighways, traffic,
-              minutes: range_s / 60, distance_km: range_m / 1000
+              minutes: minutesClamped, distance_km: range_m / 1000
             },
             geometry: JSON.parse(rCache.rows[0].gj)
           }
@@ -172,7 +185,7 @@ app.post('/api/isochrone', async (req, res) => {
         type: 'Feature',
         properties: {
           billboard_id, mode, profile, avoidHighways, traffic,
-          minutes: range_s / 60, distance_km: range_m / 1000
+          minutes: minutesClamped, distance_km: range_m / 1000
         },
         geometry: outGeom
       }
@@ -199,8 +212,10 @@ app.post('/api/iso-insights', async (req, res) => {
 
     if (!billboard_id) throw new Error('billboard_id is required');
 
+    const minutesClamped = clampMinutes(minutes);
+
     const factor = TRAFFIC_FACTOR[traffic] ?? 1.0;
-    const range_s = (mode === 'time') ? Math.max(1, Math.round(Number(minutes) * 60 * factor)) : 0;
+    const range_s = (mode === 'time') ? Math.max(1, Math.round(Number(minutesClamped) * 60 * factor)) : 0;
     const range_m = (mode === 'distance') ? Math.max(1, Math.round(Number(distance_km) * 1000)) : 0;
 
     const gq = `
