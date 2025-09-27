@@ -41,9 +41,11 @@ map.on('load', async () => {
 
 // health check
 const apiStatusEl = document.getElementById('apiStatus');
-fetch(`${API_BASE}/healthz`).then(r => r.ok ? r.json() : Promise.reject())
-  .then(() => { apiStatusEl.textContent = 'OK'; apiStatusEl.className = 'ok'; })
-  .catch(() => { apiStatusEl.textContent = 'OFFLINE'; apiStatusEl.className = 'bad'; });
+fetch(`${API_BASE}/healthz`)
+  .then(r => r.ok ? r.json() : Promise.reject())
+  .then(() => { if (apiStatusEl){ apiStatusEl.textContent='OK'; apiStatusEl.className='ok'; }})
+  .catch(() => { if (apiStatusEl){ apiStatusEl.textContent='OFFLINE'; apiStatusEl.className='bad'; }});
+
 
 // inputs
 const modeSel = document.getElementById('mode');
@@ -244,4 +246,14 @@ document.getElementById('clearBtn').addEventListener('click', () => {
     map.getSource('iso').setData({ type: 'FeatureCollection', features: [] });
   }
   insightEl.innerHTML = 'Klik titik billboard untuk melihat isochrone & insight.';
+});
+
+// tab switching
+document.querySelectorAll('#sidebar .tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#sidebar .tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('#sidebar .pane').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelector(`#tab-${btn.dataset.tab}`).classList.add('active');
+  });
 });

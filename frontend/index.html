@@ -13,70 +13,118 @@
   <body>
     <div id="map"></div>
 
-    <div class="panel">
-      <div><b>API:</b> <span id="apiStatus">checking…</span></div>
-
-      <div class="row">
-        <label>Mode</label>
-        <select id="mode">
-          <option value="time" selected>Time (minutes)</option>
-          <option value="distance">Distance (km)</option>
-        </select>
-     </div>
-
-     <div class="row">
-        <label id="lbl-min">Minutes</label>
-        <input id="minutes"
-          type="number"
-          value="10"
-          min="5"
-          max="30"
-          step="5"
-          style="width:66px;" />
-        <label id="lbl-dist" style="display:none;">Km</label>
-        <input id="distance_km" type="number" value="2" min="0.1" max="20" step="0.1" style="width:66px; display:none;" />
- 
-     </div>
-
-      <div class="row" id="row-profile">
-        <label>Profile</label>
-        <select id="profile" style="width:130px;">
-          <option value="driving-car" selected>driving-car</option>
-          <option value="cycling-regular">cycling-regular</option>
-          <option value="foot-walking">foot-walking</option>
-        </select>
+    <div id="sidebar">
+      <div class="tabs">
+        <button data-tab="overview" class="tab active">Overview</button>
+        <button data-tab="isochrone" class="tab">Isochrone</button>
+        <button data-tab="analysis" class="tab">Analysis</button>
       </div>
 
-      <div class="row" id="row-traffic">
-        <label>Traffic</label>
-        <select id="traffic" style="width:130px;">
-          <option value="normal">Normal (1.0)</option>
-          <option value="light">Rendah (0.75)</option>
-          <option value="moderate">Sedang (0.50)</option>
-          <option value="heavy" selected>Padat (0.25)</option>
-        </select>
-      </div>
+      <div class="tabpanes">
+          <div class="group">
+            <div><b>API:</b> <span id="apiStatus">checking…</span>
+          </div>
 
-      <div class="row" id="row-avoid">
-        <label><input id="avoidHighways" type="checkbox" /> avoid highways</label>
-        <label class="muted" title="Bypass server cache untuk debugging">
-          <input id="nocache" type="checkbox" /> nocache (debug)
-        </label>
-      </div>
+        <section id="tab-overview" class="pane active">
+          <div class="group">
+            <div class="muted">Layers</div>
+            <label><input type="checkbox" id="ly-billboards" checked/> Billboards</label>
+            <label><input type="checkbox" id="ly-iso" checked/> Isochrone</label>
+            <label><input type="checkbox" id="ly-poi" checked/> POI</label>
+          </div>
+          
+          <div class="group">
+            <div class="muted">Billboard info</div>
+            <div id="bb-info" class="box muted">Klik titik billboard…</div>
+            <button id="btn-streetview" disabled>Street View</button>
+          </div>
+        </section>
 
-      <div class="row" style="margin-top:6px;">
-        <button id="clearBtn" class="btn">Clear</button>
-      </div>
+        <section id="tab-isochrone" class="pane">
+            <div class="row">
+              <label>Mode</label>
+              <select id="mode">
+                <option value="time" selected>Time (minutes)</option>
+                <option value="distance">Distance (km)</option>
+              </select>
+            </div>
 
-      <div class="muted" style="margin:8px 0 10px;">
-        <div><b>Tips:</b></div>
-        <div>• <b>Time hanya 5–30 menit (kelipatan 5)</b>.</div>
-        <div>• Toggle <i>avoid highways</i> untuk hasil realistis di dalam kota.</div>
-        <div>• Gunakan <i>Traffic</i> untuk pilihan kemacetan.</div>
-      </div>
+            <div class="row">
+              <label id="lbl-min">Minutes</label>
+              <input id="minutes"
+                type="number"
+                value="10"
+                min="5"
+                max="30"
+                step="5"
+                style="width:66px;" />
+              <label id="lbl-dist" style="display:none;">Km</label>
+              <input id="distance_km" type="number" value="2" min="0.1" max="20" step="0.1" style="width:66px; display:none;" />
+            </div>
 
-      <div id="insight" class="muted">Klik titik billboard untuk melihat isochrone & insight.</div>
+            <div class="row" id="row-profile">
+              <label>Profile</label>
+              <select id="profile" style="width:130px;">
+                <option value="driving-car" selected>driving-car</option>
+                <option value="cycling-regular">cycling-regular</option>
+                <option value="foot-walking">foot-walking</option>
+              </select>
+            </div>
+
+            <div class="row" id="row-traffic">
+              <label>Traffic</label>
+              <select id="traffic" style="width:130px;">
+                <option value="normal">Normal (1.0)</option>
+                <option value="light">Rendah (0.75)</option>
+                <option value="moderate">Sedang (0.50)</option>
+                <option value="heavy" selected>Padat (0.25)</option>
+              </select>
+            </div>
+
+            <div class="row" id="row-avoid">
+              <label><input id="avoidHighways" type="checkbox" /> avoid highways</label>
+              <label class="muted" title="Bypass server cache untuk debugging">
+                <input id="nocache" type="checkbox" /> nocache (debug)
+              </label>
+            </div>
+
+            <div class="row" style="margin-top:6px;">
+              <button id="clearBtn" class="btn">Clear</button>
+            </div>
+
+            <div class="muted" style="margin:8px 0 10px;">
+              <div><b>Tips:</b></div>
+              <div>• <b>Time hanya 5–30 menit (kelipatan 5)</b>.</div>
+              <div>• Toggle <i>avoid highways</i> untuk hasil realistis di dalam kota.</div>
+              <div>• Gunakan <i>Traffic</i> untuk pilihan kemacetan.</div>
+            </div>
+
+            <div id="insight" class="muted">Klik titik billboard untuk melihat isochrone & insight.</div>
+          </div>
+        </section>
+
+        <section id="tab-analysis" class="pane">
+          <div class="group">
+            <div class="muted">Cari billboard terdekat</div>
+            <button id="pick-point">Pick point on map</button>
+            <label>Jumlah:<input id="nearest-n" type="number" value="5" min="1" max="50" style="width:60px"/></label>
+            <button id="btn-nearest">Find</button>
+          </div>
+
+          <div class="group">
+            <div class="muted">Filter (contoh)</div>
+            <label>Min. populasi terjangkau:
+              <input id="min-pop" type="number" value="100000" step="1000" style="width:120px"/>
+            </label>
+            <button id="btn-run-filter">Apply</button>
+          </div>
+
+          <div id="analysis-results" class="box muted">Belum ada hasil</div>
+        </section>
+      </div>
     </div>
+
+
 
     <!-- App script -->
     <script type="module" src="/src/app.js"></script>
