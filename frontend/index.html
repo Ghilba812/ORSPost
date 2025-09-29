@@ -36,7 +36,9 @@
           <div class="group">
             <div class="muted">Billboard info</div>
             <div id="bb-info" class="box muted">Klik titik billboard…</div>
-            <button id="btn-streetview" disabled>Street View</button>
+          </div>
+          <div class="row" style="margin-top:10px;">
+          <button id="btn-streetview" disabled>Street View</button>
           </div>
         </section>
 
@@ -88,7 +90,8 @@
               </label>
             </div>
 
-            <div class="row" style="margin-top:6px;">
+            <div class="row" style="margin-top:10px;">
+              <button id="genBtn" class="btn">Generate</button>
               <button id="clearBtn" class="btn">Clear</button>
             </div>
 
@@ -104,27 +107,24 @@
         </section>
 
         <section id="tab-analysis" class="pane">
-          <div class="group">
-            <div class="muted">Cari billboard terdekat</div>
-            <button id="pick-point">Pick point on map</button>
-            <label>Jumlah:<input id="nearest-n" type="number" value="5" min="1" max="50" style="width:60px"/></label>
-            <button id="btn-nearest">Find</button>
+          <h3>Analysis</h3>
+
+          <div class="row">
+            <button id="anl-pickpoint">Pick point on map</button>
+            <span class="muted" id="anl-pointlabel">no point</span>
+            <button id="anl-clearpoint">Clear</button>
           </div>
 
-          <div class="group">
-            <div class="muted">Filter (contoh)</div>
-            <label>Min. populasi terjangkau:
-              <input id="min-pop" type="number" value="100000" step="1000" style="width:120px"/>
-            </label>
-            <button id="btn-run-filter">Apply</button>
+          <div class="row">
+            <label>Limit</label>
+            <input id="anl-limit" type="number" value="10" min="1" max="50" style="width:70px"/>
+            <button id="anl-nearest">Find nearest billboards</button>
           </div>
 
-          <div id="analysis-results" class="box muted">Belum ada hasil</div>
+          <div id="anl-results" class="muted">Belum ada hasil.</div>
         </section>
       </div>
     </div>
-
-
 
     <!-- App script -->
     <script type="module" src="/src/app.js"></script>

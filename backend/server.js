@@ -301,6 +301,41 @@ app.post('/api/iso-insights', async (req, res) => {
   }
 });
 
+// ================== ANALYSIS ==================
+// Cari billboard terdekat dari titik (lon/lat), KNN
+// GET /api/analysis/nearest?lon=107.61&lat=-6.91&limit=10
+app.get('/api/analysis/nearest', async (req, res) => {
+  try {
+    const lon = Number(req.query.lon);
+    const lat = Number(req.query.lat);
+    const limit = Math.max(1, Math.min(50, Number(req.query.limit) || 10));
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
+      return res.status(400).json({ error: 'lon/lat required' });
+    }
+
+    // KNN: ORDER BY geom <-> ref (CEPAT), jarak sphere untuk info (meter)
+    const sql = `
+      WITH ref AS (
+        SELECT ST_SetSRID(ST_Point($1,$2),4326) AS g
+      )
+      SELECT
+        b.id,
+        b."address" AS address,
+        ST_X(b.geom) AS lon,
+        ST_Y(b.geom) AS lat,
+        ST_DistanceSphere(b.geom, (SELECT g FROM ref))::bigint AS dist_m
+      FROM webgis.billboard b
+      ORDER BY b.geom <-> (SELECT g FROM ref)
+      LIMIT $3
+    `;
+    const { rows } = await pool.query(sql, [lon, lat, limit]);
+    res.json(rows);
+  } catch (err) {
+    console.error('GET /api/analysis/nearest:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 /* ============ Start server ============ */
 const port = Number(process.env.PORT || 3000);
 app.listen(port, '127.0.0.1', () => {
