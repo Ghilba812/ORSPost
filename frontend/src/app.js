@@ -325,6 +325,9 @@ async function runIsochrone(){
 
     if (isoInsightEl) {
       isoInsightEl.innerHTML = `
+        <div style="margin-top:6px"><b>Billboard #${selectedBillboard.id}</b><br>
+          <span class="muted">${esc(selectedBillboard.address) || '<i>no address</i>'}</span>
+        </div>
         <div class="muted">Mode: <b>${mode}</b> — ${mode==='time' ? `${minutes} min` : `${distance_km} km`}</div>
         <div>Profile: <code>${profile}</code></div>
         <div>Traffic: <code>${traffic}</code></div>
@@ -364,6 +367,39 @@ const anlPtLabel   = document.getElementById('anl-pointlabel');
 const anlLimitInp  = document.getElementById('anl-limit');
 const anlNearestBtn= document.getElementById('anl-nearest');
 const anlResultsEl = document.getElementById('anl-results');
+const anlAddrInput = document.getElementById('anl-address');
+const anlGeocodeBtn = document.getElementById('anl-geocode');
+
+// Geocode 
+anlGeocodeBtn?.addEventListener('click', async () => {
+  const q = anlAddrInput.value.trim();
+  if (!q) return;
+  anlResultsEl.innerHTML = 'Geocoding…';
+
+  try {
+    const resp = await fetch(`https://api.openrouteservice.org/geocode/search?api_key=${import.meta.env.VITE_ORS_KEY}&text=${encodeURIComponent(q)}`);
+    const data = await resp.json();
+    if (!data.features || !data.features.length) {
+      anlResultsEl.innerHTML = '<span class="bad">Alamat tidak ditemukan.</span>';
+      return;
+    }
+
+    const [lon, lat] = data.features[0].geometry.coordinates;
+    setAnalysisPoint(lon, lat);
+
+    // tambahkan marker
+    if (analysisMarker) analysisMarker.remove();
+    analysisMarker = new maplibregl.Marker({ color: '#10B981' })
+      .setLngLat([lon, lat])
+      .addTo(map);
+
+    map.flyTo({ center:[lon,lat], zoom:14 });
+    anlResultsEl.innerHTML = `Hasil geocode: [${lat.toFixed(5)}, ${lon.toFixed(5)}]`;
+  } catch(err){
+    console.error(err);
+    anlResultsEl.innerHTML = '<span class="bad">Gagal geocoding.</span>';
+  }
+});
 
 let pickMode  = false;     // sedang mode pick point?
 let analysisPoint   = null;      // {lon,lat}
