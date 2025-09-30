@@ -150,6 +150,31 @@ h1 {
   color: #888;
 }
 
+.buttonClear {
+  border-radius: 6px;
+  border: 1px solid #000000;
+  padding: 0.6em 1em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  color:#000000;
+  background-color: #ffffff;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+
+.buttonGen {
+  border-radius: 6px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #ee0000;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+
 button {
   border-radius: 6px;
   border: 1px solid transparent;

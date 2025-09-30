@@ -374,12 +374,14 @@ const anlGeocodeBtn = document.getElementById('anl-geocode');
 anlGeocodeBtn?.addEventListener('click', async () => {
   const q = anlAddrInput.value.trim();
   if (!q) return;
-  anlResultsEl.innerHTML = 'Geocoding…';
+  anlResultsEl.textContent = 'Geocoding…';
 
   try {
-    const resp = await fetch(`https://api.openrouteservice.org/geocode/search?api_key=${import.meta.env.VITE_ORS_KEY}&text=${encodeURIComponent(q)}`);
+    const resp = await fetch(`${API_BASE}/api/geocode?text=${encodeURIComponent(q)}`);
+    if (!resp.ok) throw new Error(await resp.text());
     const data = await resp.json();
-    if (!data.features || !data.features.length) {
+
+    if (!data.features?.length) {
       anlResultsEl.innerHTML = '<span class="bad">Alamat tidak ditemukan.</span>';
       return;
     }
@@ -387,19 +389,20 @@ anlGeocodeBtn?.addEventListener('click', async () => {
     const [lon, lat] = data.features[0].geometry.coordinates;
     setAnalysisPoint(lon, lat);
 
-    // tambahkan marker
+    // Pasang/update marker hijau
     if (analysisMarker) analysisMarker.remove();
     analysisMarker = new maplibregl.Marker({ color: '#10B981' })
       .setLngLat([lon, lat])
       .addTo(map);
 
-    map.flyTo({ center:[lon,lat], zoom:14 });
+    map.flyTo({ center: [lon, lat], zoom: 14 });
     anlResultsEl.innerHTML = `Hasil geocode: [${lat.toFixed(5)}, ${lon.toFixed(5)}]`;
-  } catch(err){
+  } catch (err) {
     console.error(err);
     anlResultsEl.innerHTML = '<span class="bad">Gagal geocoding.</span>';
   }
 });
+
 
 let pickMode  = false;     // sedang mode pick point?
 let analysisPoint   = null;      // {lon,lat}

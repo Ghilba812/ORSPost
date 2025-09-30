@@ -303,6 +303,29 @@ app.post('/api/iso-insights', async (req, res) => {
 
 // ================== ANALYSIS ==================
 // Cari billboard terdekat dari titik (lon/lat), KNN
+// Geocode proxy: /api/geocode?text=...
+app.get('/api/geocode', async (req, res) => {
+  try {
+    const text = String(req.query.text || '').trim();
+    if (!text) return res.status(400).json({ error: 'text required' });
+
+    const url = `https://api.openrouteservice.org/geocode/search?text=${encodeURIComponent(text)}`;
+    const r = await fetch(url, {
+      headers: { Authorization: process.env.ORS_KEY } // kunci dari backend .env
+    });
+
+    if (!r.ok) {
+      const msg = await r.text();
+      return res.status(r.status).json({ error: msg || `ORS ${r.status}` });
+    }
+    const data = await r.json();
+    res.json(data);
+  } catch (err) {
+    console.error('GET /api/geocode:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/analysis/nearest?lon=107.61&lat=-6.91&limit=10
 app.get('/api/analysis/nearest', async (req, res) => {
   try {
