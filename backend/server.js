@@ -301,6 +301,64 @@ app.post('/api/iso-insights', async (req, res) => {
   }
 });
 
+// ================== ANALYSIS ==================
+// Cari billboard terdekat dari titik (lon/lat), KNN
+// Geocode proxy: /api/geocode?text=...
+app.get('/api/geocode', async (req, res) => {
+  try {
+    const text = String(req.query.text || '').trim();
+    if (!text) return res.status(400).json({ error: 'text required' });
+
+    const url = `https://api.openrouteservice.org/geocode/search?text=${encodeURIComponent(text)}`;
+    const r = await fetch(url, {
+      headers: { Authorization: process.env.ORS_KEY } // kunci dari backend .env
+    });
+
+    if (!r.ok) {
+      const msg = await r.text();
+      return res.status(r.status).json({ error: msg || `ORS ${r.status}` });
+    }
+    const data = await r.json();
+    res.json(data);
+  } catch (err) {
+    console.error('GET /api/geocode:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/analysis/nearest?lon=107.61&lat=-6.91&limit=10
+app.get('/api/analysis/nearest', async (req, res) => {
+  try {
+    const lon = Number(req.query.lon);
+    const lat = Number(req.query.lat);
+    const limit = Math.max(1, Math.min(50, Number(req.query.limit) || 10));
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
+      return res.status(400).json({ error: 'lon/lat required' });
+    }
+
+    // KNN: ORDER BY geom <-> ref (CEPAT), jarak sphere untuk info (meter)
+    const sql = `
+      WITH ref AS (
+        SELECT ST_SetSRID(ST_Point($1,$2),4326) AS g
+      )
+      SELECT
+        b.id,
+        b."address" AS address,
+        ST_X(b.geom) AS lon,
+        ST_Y(b.geom) AS lat,
+        ST_DistanceSphere(b.geom, (SELECT g FROM ref))::bigint AS dist_m
+      FROM webgis.billboard b
+      ORDER BY b.geom <-> (SELECT g FROM ref)
+      LIMIT $3
+    `;
+    const { rows } = await pool.query(sql, [lon, lat, limit]);
+    res.json(rows);
+  } catch (err) {
+    console.error('GET /api/analysis/nearest:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 /* ============ Start server ============ */
 const port = Number(process.env.PORT || 3000);
 app.listen(port, '127.0.0.1', () => {
