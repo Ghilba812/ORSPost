@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>ORS Post Map</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body class="map-page">
+    <div id="map"></div>
+
+    <div id="sidebar">
+      <div class="tabs">
+        <button data-tab="overview" class="tab active">Overview</button>
+        <button data-tab="isochrone" class="tab">Isochrone</button>
+        <button data-tab="analysis" class="tab">Analysis</button>
+      </div>
+
+      <div class="tabpanes">
+        <div class="group">
+          <div><b>API:</b> <span id="apiStatus">checking…</span></div>
+        </div>
+
+        <section id="tab-overview" class="pane active">
+          <div class="group">
+            <div class="muted">Layers</div>
+            <label><input type="checkbox" id="ly-billboards" checked/> Billboards</label>
+            <label><input type="checkbox" id="ly-iso" checked/> Isochrone</label>
+            <label><input type="checkbox" id="ly-poi" checked/> POI</label>
+          </div>
+
+          <div class="group">
+            <div class="muted">Billboard info</div>
+            <div id="bb-info" class="box muted">Klik titik billboard…</div>
+          </div>
+          <div class="row" style="margin-top:10px;">
+            <button id="btn-streetview" disabled>Street View</button>
+          </div>
+        </section>
+
+        <section id="tab-isochrone" class="pane">
+          <div class="row">
+            <label>Mode</label>
+            <select id="mode">
+              <option value="time" selected>Time (minutes)</option>
+              <option value="distance">Distance (km)</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <label id="lbl-min">Minutes</label>
+            <input
+              id="minutes"
+              type="number"
+              value="10"
+              min="5"
+              max="30"
+              step="5"
+              style="width:66px;"
+            />
+            <label id="lbl-dist" style="display:none;">Km</label>
+            <input id="distance_km" type="number" value="2" min="0.1" max="20" step="0.1" style="width:66px; display:none;" />
+          </div>
+
+          <div class="row" id="row-profile">
+            <label>Profile</label>
+            <select id="profile" style="width:130px;">
+              <option value="driving-car" selected>driving-car</option>
+              <option value="cycling-regular">cycling-regular</option>
+              <option value="foot-walking">foot-walking</option>
+            </select>
+          </div>
+
+          <div class="row" id="row-traffic">
+            <label>Traffic</label>
+            <select id="traffic" style="width:130px;">
+              <option value="normal">Normal (1.0)</option>
+              <option value="light">Rendah (0.75)</option>
+              <option value="moderate">Sedang (0.50)</option>
+              <option value="heavy" selected>Padat (0.25)</option>
+            </select>
+          </div>
+
+          <div class="row" id="row-avoid">
+            <label><input id="avoidHighways" type="checkbox" /> avoid highways</label>
+            <label class="muted" title="Bypass server cache untuk debugging">
+              <input id="nocache" type="checkbox" /> nocache (debug)
+            </label>
+          </div>
+
+          <div class="row" style="margin-top:10px;">
+            <button id="genBtn" class="buttonGen">Generate</button>
+            <button id="clearBtn" class="buttonClear">Clear</button>
+          </div>
+
+          <div class="muted" style="margin:8px 0 10px;">
+            <div><b>Tips:</b></div>
+            <div>• <b>Time hanya 5–30 menit (kelipatan 5)</b>.</div>
+            <div>• Toggle <i>avoid highways</i> untuk hasil realistis di dalam kota.</div>
+            <div>• Gunakan <i>Traffic</i> untuk pilihan kemacetan.</div>
+          </div>
+
+          <div id="iso-insight" class="muted">Klik titik billboard untuk melihat isochrone & insight.</div>
+        </section>
+
+        <section id="tab-analysis" class="pane">
+          <h3>Nearest Billboard Analysis</h3>
+
+          <div class="row">
+            <input id="anl-address" type="text" placeholder="Enter Adress…" style="width:200px"/>
+            <button id="anl-geocode">Geocode & Find</button>
+          </div>
+
+          <div>
+            <p>OR</p>
+          </div>
+
+          <div class="row">
+            <button id="anl-pickpoint">Pick point on map</button>
+            <span class="muted" id="anl-pointlabel">no point</span>
+            <button id="anl-clearpoint" class="buttonClear">Clear</button>
+          </div>
+
+          <div class="row" style="margin: 10px 0 10px;">
+            <label>Limit</label>
+            <input id="anl-limit" type="number" value="10" min="1" max="50" style="width:70px"/>
+            <button id="anl-nearest" class="buttonGen">Find nearest billboards</button>
+          </div>
+
+          <div id="anl-results" class="muted">Belum ada hasil.</div>
+        </section>
+      </div>
+    </div>
+
+    <script type="module" src="/src/app.js"></script>
+  </body>
+</html>
