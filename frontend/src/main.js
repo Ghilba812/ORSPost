@@ -82,8 +82,8 @@ const Hero = () => `
       <h1>${heroContent.title}</h1>
       <p class="subtitle">${heroContent.subtitle}</p>
       <div class="hero__actions">
-        <a class="btn primary" href="${MAP_ROUTE}">Buka peta sekarang</a>
-        <a class="btn ghost" href="#features">Lihat fitur</a>
+        <a class="btn primary" href="${MAP_ROUTE}" aria-label="Buka peta interaktif ORS Post">Buka peta sekarang</a>
+        <a class="btn ghost" href="#features" aria-label="Lihat fitur utama ORS Post">Lihat fitur</a>
       </div>
       <div class="hero__meta">
         ${heroContent.highlights
@@ -101,7 +101,7 @@ const Hero = () => `
           <li>Pilih titik billboard langsung di peta</li>
           <li>Gunakan traffic preset untuk simulasi macet</li>
         </ul>
-        <a class="btn secondary" href="${MAP_ROUTE}">Mulai dari peta</a>
+        <a class="btn secondary" href="${MAP_ROUTE}" aria-label="Mulai eksplorasi dari peta">Mulai dari peta</a>
       </div>
     </div>
   </header>
@@ -140,8 +140,8 @@ const HowItWorks = () => `
         nearest billboard, serta statistik titik yang relevan.
       </p>
       <div class="cta__actions">
-        <a class="btn primary" href="${MAP_ROUTE}">Buka peta</a>
-        <a class="link" href="${MAP_ROUTE}">Lihat rute map →</a>
+        <a class="btn primary" href="${MAP_ROUTE}" aria-label="Buka peta untuk mulai analisis">Buka peta</a>
+        <a class="link" href="${MAP_ROUTE}" aria-label="Lihat contoh rute peta">Lihat rute map →</a>
       </div>
     </div>
     <div class="steps">
