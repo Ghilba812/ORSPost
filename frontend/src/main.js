@@ -129,6 +129,35 @@ const Hero = () => `
         <a class="btn secondary" href="${MAP_ROUTE}" aria-label="Mulai eksplorasi dari peta">Mulai dari peta</a>
       </div>
     </div>
+    <div class="hero__visual" aria-hidden="true" role="presentation">
+      <svg viewBox="0 0 320 260" xmlns="http://www.w3.org/2000/svg" focusable="false">
+        <defs>
+          <linearGradient id="heroGradient" x1="12%" x2="88%" y1="14%" y2="82%">
+            <stop stop-color="#5b21b6" stop-opacity="0.18" />
+            <stop stop-color="#0ea5e9" stop-opacity="0.4" />
+            <stop stop-color="#a855f7" stop-opacity="0.32" />
+          </linearGradient>
+          <linearGradient id="heroStroke" x1="0%" x2="120%" y1="20%" y2="80%">
+            <stop stop-color="#67e8f9" stop-opacity="0.9" />
+            <stop stop-color="#c4b5fd" stop-opacity="0.9" />
+          </linearGradient>
+        </defs>
+        <rect x="12" y="16" width="296" height="214" rx="28" fill="url(#heroGradient)" />
+        <rect x="30" y="36" width="140" height="16" rx="8" fill="#0b1120" opacity="0.76" />
+        <rect x="30" y="66" width="110" height="14" rx="7" fill="#0b1120" opacity="0.76" />
+        <rect x="30" y="96" width="112" height="14" rx="7" fill="#22d3ee" opacity="0.8" />
+        <rect x="30" y="124" width="180" height="78" rx="12" fill="#0b1120" opacity="0.82" stroke="url(#heroStroke)" stroke-width="2" />
+        <rect x="46" y="140" width="64" height="12" rx="6" fill="#c084fc" opacity="0.9" />
+        <rect x="46" y="164" width="120" height="10" rx="5" fill="#1d4ed8" opacity="0.75" />
+        <rect x="46" y="182" width="96" height="10" rx="5" fill="#22d3ee" opacity="0.82" />
+        <path d="M176 92c18-22 46-26 72-8" fill="none" stroke="url(#heroStroke)" stroke-width="3" stroke-linecap="round" />
+        <circle cx="176" cy="92" r="5" fill="#22d3ee" />
+        <circle cx="248" cy="118" r="7" fill="#c084fc" />
+        <circle cx="220" cy="84" r="6" fill="#fbbf24" />
+        <circle cx="270" cy="154" r="11" fill="#22d3ee" opacity="0.4" />
+      </svg>
+      <div class="hero__visual-note">Ringkas, vektor, tanpa pustaka ikon berat.</div>
+    </div>
   </header>
 `
 
