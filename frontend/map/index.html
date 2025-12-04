@@ -10,6 +10,13 @@
   </head>
   <body class="map-page">
     <div id="map"></div>
+    <div id="map-loader" class="map-loader" role="status" aria-live="polite">
+      <div class="spinner" aria-hidden="true"></div>
+      <div>
+        <div class="loader-title">Memuat peta…</div>
+        <div id="map-loader__status" class="loader-status">Menginisialisasi modul peta</div>
+      </div>
+    </div>
 
     <div id="sidebar">
       <div class="tabs">
@@ -129,11 +136,11 @@
             <button id="anl-nearest" class="buttonGen">Find nearest billboards</button>
           </div>
 
-          <div id="anl-results" class="muted">Belum ada hasil.</div>
-        </section>
-      </div>
+      <div id="anl-results" class="muted">Belum ada hasil.</div>
+    </section>
     </div>
+  </div>
 
-    <script type="module" src="/src/app.js"></script>
+    <script type="module" src="/src/map-lazy.js"></script>
   </body>
 </html>
