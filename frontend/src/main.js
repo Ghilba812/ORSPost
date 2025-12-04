@@ -75,6 +75,31 @@ const footerLinks = [
   },
 ]
 
+const navLinks = [
+  { label: 'Peta', href: MAP_ROUTE, aria: 'Buka peta billboard' },
+  { label: 'Data', href: '#features', aria: 'Lihat ringkasan data billboard' },
+  { label: 'Tentang', href: '#about', aria: 'Pelajari workflow ORS Post' },
+]
+
+const Navbar = () => `
+  <header class="navbar">
+    <a href="/" class="navbar__brand" aria-label="Kembali ke halaman utama ORS Post">ORS Post</a>
+    <nav aria-label="Menu utama">
+      <ul class="navbar__links">
+        ${navLinks
+          .map(
+            (link) =>
+              `<li><a href="${link.href}" aria-label="${link.aria}">${link.label}</a></li>`,
+          )
+          .join('')}
+      </ul>
+    </nav>
+    <div class="navbar__cta">
+      <a class="btn primary" href="${MAP_ROUTE}" aria-label="Mulai dari peta interaktif">Buka peta</a>
+    </div>
+  </header>
+`
+
 const Hero = () => `
   <header class="hero">
     <div class="hero__content">
@@ -226,6 +251,7 @@ const app = document.querySelector('#app')
 
 app.innerHTML = `
   <div class="page">
+    ${Navbar()}
     ${Hero()}
     ${FeatureGrid()}
     ${HowItWorks()}
