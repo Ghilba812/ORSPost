@@ -80,6 +80,49 @@ app.get('/api/billboards', async (_req, res) => {
   }
 });
 
+// 1b) hex suitability by category
+const SUITABILITY_COL = {
+  youth: 'score_youth',
+  mass: 'score_mass',
+  premium: 'score_premium',
+  family: 'score_family',
+  commuter: 'score_commuter'
+};
+
+app.get('/api/hex-suitability', async (req, res) => {
+  try {
+    const category = String(req.query.category || '').toLowerCase();
+    const col = SUITABILITY_COL[category];
+    if (!col) {
+      return res.status(400).json({ error: 'Invalid category. Use youth|mass|premium|family|commuter' });
+    }
+
+    const sql = `
+      SELECT
+        ST_AsGeoJSON(
+          COALESCE(
+            ST_Transform(geometry, 4326),
+            ST_Transform(geom_utm, 4326)
+          )
+        ) AS gj,
+        ${col}::float AS score
+      FROM webgis.hex_advertising
+      WHERE ${col} IS NOT NULL AND (geometry IS NOT NULL OR geom_utm IS NOT NULL)
+    `;
+    const { rows } = await pool.query(sql);
+    const features = rows.map(r => ({
+      type: 'Feature',
+      properties: { score: Number(r.score) },
+      geometry: JSON.parse(r.gj)
+    }));
+
+    res.json({ type: 'FeatureCollection', features });
+  } catch (err) {
+    console.error('GET /api/hex-suitability:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 2) Isochrone/Radius (time OR distance) — traffic-aware + cache-aware
 app.post('/api/isochrone', async (req, res) => {
   try {

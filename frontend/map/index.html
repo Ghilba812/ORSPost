@@ -10,6 +10,13 @@
   </head>
   <body class="map-page">
     <div id="map"></div>
+    <div id="suit-legend" class="legend" aria-hidden="true">
+      <div class="legend__title">Suitability score</div>
+      <div class="legend__bar"></div>
+      <div class="legend__labels">
+        <span>0</span><span>0.25</span><span>0.5</span><span>0.75</span><span>1</span>
+      </div>
+    </div>
     <div id="map-loader" class="map-loader" role="status" aria-live="polite">
       <div class="spinner" aria-hidden="true"></div>
       <div>
@@ -36,6 +43,24 @@
             <label><input type="checkbox" id="ly-billboards" checked/> Billboards</label>
             <label><input type="checkbox" id="ly-iso" checked/> Isochrone</label>
             <label><input type="checkbox" id="ly-poi" checked/> POI</label>
+          </div>
+
+          <div class="group">
+            <div class="muted">Suitability</div>
+            <label>Category</label>
+            <select id="suit-category" style="width:100%;">
+              <option value="all">All segments</option>
+              <option value="youth">Youth &amp; Entertainment</option>
+              <option value="mass">Mass Market / FMCG</option>
+              <option value="premium">Premium &amp; Lifestyle</option>
+              <option value="family">Family &amp; Household</option>
+              <option value="commuter">Commuter &amp; Business</option>
+            </select>
+            <label style="margin-top:6px;"><input type="checkbox" id="suit-toggle"/> Show suitability hexagons</label>
+            <label class="muted" style="margin-top:4px;">
+              <input type="checkbox" id="suit-filter"/> Show only selected segment billboards
+            </label>
+            <div id="suit-status" class="muted" style="margin-top:4px;">Select a category, then toggle show.</div>
           </div>
 
           <div class="group">

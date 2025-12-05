@@ -12,6 +12,14 @@ import './style.css';
 // ─────────────────────────────────────────────────────────────
 const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY;
 const API_BASE     = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:3000';
+const SUITABILITY_KEYS = ['youth','mass','premium','family','commuter'];
+const SUITABILITY_SEGMENTS = {
+  youth:    'Youth & Entertainment',
+  mass:     'Mass Market / FMCG',
+  premium:  'Premium & Lifestyle',
+  family:   'Family & Household',
+  commuter: 'Commuter & Business'
+};
 
 // ─────────────────────────────────────────────────────────────
 // State global (tab, billboard terpilih, dll.)
@@ -19,6 +27,9 @@ const API_BASE     = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:3000';
 let activeTab = 'overview'; // 'overview' | 'isochrone' | 'analysis'
 let selectedBillboard = null; // { id, address, coords:[lon,lat] }
 let rulerActive = false;
+let suitCategory = 'all'; // 'all' | youth | mass | premium | family | commuter
+let suitLayerVisible = false;
+let suitFilterOnly = false;
 
 // ─────────────────────────────────────────────────────────────
 // Referensi DOM (SESUAIKAN ID DI index.html)
@@ -48,6 +59,12 @@ const genBtn        = document.getElementById('genBtn'); // optional tombol Gene
 const chkBB  = document.getElementById('ly-billboards');
 const chkIso = document.getElementById('ly-iso');
 const chkPoi = document.getElementById('ly-poi'); // kalau ada layer POI
+const suitToggle    = document.getElementById('suit-toggle');
+const suitCategorySel = document.getElementById('suit-category');
+const suitFilterCb    = document.getElementById('suit-filter');
+const suitStatusEl   = document.getElementById('suit-status');
+const suitLegend     = document.getElementById('suit-legend');
+let suitProgressTimer = null;
 
 // ─────────────────────────────────────────────────────────────
 // Inisialisasi map
@@ -81,10 +98,36 @@ map.on('load', async () => {
   map.addLayer({ id:'iso-outline', type:'line', source:'iso',
     paint:{ 'line-color':'#2f3e8f', 'line-width':1 }});
 
+  // Sumber & layer hex suitability (awalnya hidden)
+  map.addSource('hex-suitability', { type:'geojson', data:{ type:'FeatureCollection', features:[] } });
+  map.addLayer({ id:'hex-suitability-fill', type:'fill', source:'hex-suitability',
+    layout:{ visibility:'none' },
+    paint:{
+      'fill-color': ['interpolate', ['linear'], ['to-number', ['get','score'], 0],
+        0,    '#440154',
+        0.2,  '#46327e',
+        0.4,  '#365c8d',
+        0.6,  '#1fa088',
+        0.8,  '#6ece58',
+        1,    '#fde725'
+      ],
+      'fill-opacity': 0.65
+    }
+  });
+  map.addLayer({ id:'hex-suitability-outline', type:'line', source:'hex-suitability',
+    layout:{ visibility:'none' },
+    paint:{ 'line-color':'#0f172a', 'line-width':1, 'line-opacity':0.45 }
+  });
+  // Keep hex layer just beneath billboards
+  if (map.getLayer('billboards')) {
+    map.moveLayer('hex-suitability-fill', 'billboards');
+    map.moveLayer('hex-suitability-outline', 'billboards');
+  }
+
   // Sumber & layer titik billboard
   map.addSource('billboards', { type:'geojson', data:{ type:'FeatureCollection', features:[] }});
   map.addLayer({ id:'billboards', type:'circle', source:'billboards',
-    paint:{ 'circle-radius':5, 'circle-color':'#e4572e', 'circle-stroke-width':1, 'circle-stroke-color':'#fff' }});
+    paint:{ 'circle-radius':4, 'circle-color':'#e4572e', 'circle-stroke-width':1, 'circle-stroke-color':'#fff', 'circle-opacity':0.9 }});
   map.addLayer({ id: 'billboards-selected', type: 'circle', source: 'billboards',
     paint: {'circle-radius': 6, 'circle-color': '#FFD12A', 'circle-stroke-width': 1,'circle-stroke-color': '#000000ff'},
     filter: ['in', ['get', 'id'], ['literal', []]]     // awalnya tidak ada yang terpilih
@@ -108,6 +151,7 @@ map.on('load', async () => {
       }
     }))
   });
+  applyBillboardStyle();
 
   // UX pointer
   map.on('mouseenter','billboards',() => map.getCanvas().style.cursor='pointer');
@@ -128,6 +172,49 @@ map.on('load', async () => {
   if (chkBB)  chkBB.onchange  = () => setVisibility('billboards', chkBB.checked);
   if (chkIso) chkIso.onchange = () => { setVisibility('iso-fill', chkIso.checked); setVisibility('iso-outline', chkIso.checked); };
   if (chkPoi) chkPoi.onchange = () => setVisibility('poi-layer-id', chkPoi.checked); // ganti sesuai id layer POI milikmu
+
+  // Suitability controls
+  if (suitCategorySel) suitCategorySel.value = suitCategory;
+  if (suitToggle) suitToggle.checked = suitLayerVisible;
+  if (suitFilterCb) suitFilterCb.checked = suitFilterOnly;
+
+  if (suitToggle) suitToggle.addEventListener('change', () => {
+    if (suitToggle.checked && suitCategory === 'all') {
+      suitCategory = 'youth';
+      if (suitCategorySel) suitCategorySel.value = 'youth';
+    }
+    suitLayerVisible = !!suitToggle.checked;
+    updateSuitabilityVisibility();
+    if (suitLayerVisible) {
+      refreshSuitability();
+    } else {
+      stopSuitProgress();
+      setSuitStatus('Suitability off');
+    }
+  });
+  if (suitCategorySel) suitCategorySel.addEventListener('change', () => {
+    suitCategory = suitCategorySel.value || 'all';
+    if (suitCategory === 'all') {
+      suitLayerVisible = false;
+      if (suitToggle) suitToggle.checked = false;
+      updateSuitabilityVisibility();
+      map.getSource('hex-suitability')?.setData({ type:'FeatureCollection', features: [] });
+      suitFilterOnly = false;
+      if (suitFilterCb) suitFilterCb.checked = false;
+      applyBillboardStyle();
+      setSuitStatus('Select a category, then toggle show.');
+      return;
+    }
+    if (suitLayerVisible) refreshSuitability();
+    applyBillboardStyle();
+  });
+  if (suitFilterCb) suitFilterCb.addEventListener('change', () => {
+    suitFilterOnly = !!suitFilterCb.checked;
+    applyBillboardStyle();
+  });
+
+  updateSuitabilityVisibility();
+  setSuitStatus('Select a category, then toggle show.');
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -199,6 +286,97 @@ function setSelectedBillboards(ids = []) {
 // (opsional) alias lama biar kode lain tetap jalan
 function highlightBillboard(id){
   setSelectedBillboards([id]);
+}
+
+function getSegmentLabel() {
+  return SUITABILITY_SEGMENTS[suitCategory] || '';
+}
+
+function applyBillboardStyle(){
+  if (!map.getLayer('billboards')) return;
+  const segLabel = suitCategory === 'all' ? '' : getSegmentLabel();
+
+  if (!segLabel) {
+    // default style: show all equally
+    map.setPaintProperty('billboards', 'circle-color', '#e4572e');
+    map.setPaintProperty('billboards', 'circle-radius', 4);
+    map.setPaintProperty('billboards', 'circle-opacity', 0.9);
+    map.setPaintProperty('billboards', 'circle-stroke-width', 1);
+    map.setPaintProperty('billboards', 'circle-stroke-color', '#ffffff');
+    map.setFilter('billboards', ['all']);
+    return;
+  }
+
+  const matchExpr = ['==', ['coalesce', ['get','best_segment'], ''], segLabel];
+
+  map.setPaintProperty('billboards', 'circle-color', ['case', matchExpr, '#ffb703', '#9ca3af']);
+  map.setPaintProperty('billboards', 'circle-radius', ['case', matchExpr, 6, 4]);
+  map.setPaintProperty('billboards', 'circle-opacity', ['case', matchExpr, 0.95, 0.4]);
+  map.setPaintProperty('billboards', 'circle-stroke-width', ['case', matchExpr, 1.3, 1]);
+  map.setPaintProperty('billboards', 'circle-stroke-color', ['case', matchExpr, '#111827', '#ffffff']);
+
+  if (suitFilterOnly && segLabel) {
+    map.setFilter('billboards', ['==', ['coalesce', ['get','best_segment'], ''], segLabel]);
+  } else {
+    map.setFilter('billboards', ['all']);
+  }
+}
+
+function updateSuitabilityVisibility(){
+  ['hex-suitability-fill','hex-suitability-outline'].forEach(id => {
+    if (map.getLayer(id)) {
+      map.setLayoutProperty(id, 'visibility', suitLayerVisible ? 'visible' : 'none');
+    }
+  });
+  if (suitLegend) {
+    suitLegend.style.display = suitLayerVisible ? 'block' : 'none';
+  }
+}
+
+function setSuitStatus(msg){
+  if (suitStatusEl) suitStatusEl.textContent = msg;
+}
+
+function stopSuitProgress(){
+  if (suitProgressTimer){
+    clearInterval(suitProgressTimer);
+    suitProgressTimer = null;
+  }
+}
+
+async function refreshSuitability(){
+  if (!suitLayerVisible || !map.getSource('hex-suitability')) return;
+  const category = suitCategory || 'youth';
+  if (category === 'all') {
+    map.getSource('hex-suitability').setData({ type:'FeatureCollection', features: [] });
+    setSuitStatus('Suitability off (choose category)');
+    return;
+  }
+  const url = new URL(`${API_BASE}/api/hex-suitability`);
+  url.searchParams.set('category', category);
+  stopSuitProgress();
+  let progress = 0;
+  setSuitStatus(`Loading suitability… ${progress}%`);
+  suitProgressTimer = setInterval(() => {
+    progress = Math.min(90, progress + 10);
+    setSuitStatus(`Loading suitability… ${progress}%`);
+  }, 180);
+  try {
+    const gj = await fetch(url).then(r => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    });
+    stopSuitProgress();
+    const count = Array.isArray(gj?.features) ? gj.features.length : 0;
+    setSuitStatus(`Loaded suitability ${category} • 100% (${count} hex)`);
+    map.getSource('hex-suitability').setData(gj || { type:'FeatureCollection', features: [] });
+    updateSuitabilityVisibility();
+  } catch (err) {
+    console.error('Failed to load suitability hexes', err);
+    stopSuitProgress();
+    setSuitStatus('Failed to load suitability');
+    map.getSource('hex-suitability').setData({ type:'FeatureCollection', features: [] });
+  }
 }
 
 // ── Snapping menit (5–30, kelipatan 5)
