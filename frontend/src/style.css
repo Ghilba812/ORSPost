@@ -603,6 +603,109 @@ body.map-page {
   overflow-y: auto;
 }
 
+#iso-insight,
+#bb-info.box {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04));
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.28);
+  color: var(--color-heading);
+}
+
+#iso-insight b {
+  color: #fff;
+}
+
+#iso-insight code {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+
+.poi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.poi-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  padding: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
+}
+
+.poi-card__top {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.poi-card__badge {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--color-secondary), var(--color-accent));
+  color: #0b1120;
+  font-weight: 800;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.poi-card__meta {
+  display: grid;
+  gap: 4px;
+}
+
+.poi-title {
+  font-weight: 800;
+  color: #e2e8f0;
+}
+
+.poi-total {
+  font-size: var(--font-size-sm);
+  color: var(--color-muted);
+}
+
+.poi-items {
+  display: grid;
+  gap: 6px;
+}
+
+.poi-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.poi-bullet {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #10b981, #34d399);
+  display: inline-block;
+}
+
+.poi-name {
+  color: var(--color-text);
+}
+
+.poi-count {
+  font-weight: 700;
+  color: #c4b5fd;
+  font-variant-numeric: tabular-nums;
+}
+
 .tabs {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -756,12 +859,20 @@ body.map-page {
 
 @media (min-width: 960px) {
   body.map-page {
-    flex-direction: row;
     display: grid;
-    grid-template-columns: 1fr 380px;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    height: 100vh;
+    overflow: hidden;
   }
 
   #map {
+    position: sticky;
+    top: 0;
     height: 100vh;
+  }
+
+  #sidebar {
+    height: 100vh;
+    overflow-y: auto;
   }
 }

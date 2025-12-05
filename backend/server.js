@@ -34,7 +34,7 @@ function toBool(x, fallback = false) {
 }
 
 async function getBillboardLonLat(id) {
-  const sql = `SELECT ST_X(geom) AS lon, ST_Y(geom) AS lat FROM webgis.billboard WHERE id=$1`;
+  const sql = `SELECT ST_X(geom) AS lon, ST_Y(geom) AS lat FROM webgis.billboard_new WHERE id=$1`;
   const { rows } = await pool.query(sql, [id]);
   if (!rows.length) throw new Error('Billboard not found');
   return rows[0]; // { lon, lat }
@@ -60,8 +60,17 @@ app.get('/healthz', (_req, res) => res.json({ ok: true }));
 app.get('/api/billboards', async (_req, res) => {
   try {
     const { rows } = await pool.query(`
-      SELECT id, "address" AS address, ST_X(geom) AS lon, ST_Y(geom) AS lat
-      FROM webgis.billboard
+      SELECT
+        id,
+        "address" AS address,
+        ST_X(geom) AS lon,
+        ST_Y(geom) AS lat,
+        size_width_m,
+        size_height_m,
+        view_distance_max_m,
+        best_segment,
+        best_score
+      FROM webgis.billboard_new
       ORDER BY id
     `);
     res.json(rows);
@@ -130,7 +139,7 @@ app.post('/api/isochrone', async (req, res) => {
     if (mode === 'distance') {
       // buffer (geodesic) via PostGIS
       const qCircle = `
-        WITH pt AS ( SELECT geom FROM webgis.billboard WHERE id=$1 )
+        WITH pt AS ( SELECT geom FROM webgis.billboard_new WHERE id=$1 )
         SELECT ST_AsGeoJSON( ST_Buffer((SELECT geom FROM pt)::geography, $2)::geometry ) AS gj
       `;
       const rCircle = await pool.query(qCircle, [billboard_id, range_m]);
@@ -347,7 +356,7 @@ app.get('/api/analysis/nearest', async (req, res) => {
         ST_X(b.geom) AS lon,
         ST_Y(b.geom) AS lat,
         ST_DistanceSphere(b.geom, (SELECT g FROM ref))::bigint AS dist_m
-      FROM webgis.billboard b
+      FROM webgis.billboard_new b
       ORDER BY b.geom <-> (SELECT g FROM ref)
       LIMIT $3
     `;

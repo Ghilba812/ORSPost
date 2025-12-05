@@ -97,7 +97,15 @@ map.on('load', async () => {
     features: pts.map(b => ({
       type:'Feature',
       geometry:{ type:'Point', coordinates:[+b.lon, +b.lat] },
-      properties:{ id:b.id, address:b.address || '' }
+      properties:{
+        id: b.id,
+        address: b.address || '',
+        size_width_m: b.size_width_m,
+        size_height_m: b.size_height_m,
+        view_distance_max_m: b.view_distance_max_m,
+        best_segment: b.best_segment,
+        best_score: b.best_score
+      }
     }))
   });
 
@@ -135,18 +143,47 @@ fetch(`${API_BASE}/healthz`)
 // ─────────────────────────────────────────────────────────────
 function esc(s){ return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
+function numOrNull(x){
+  const n = Number(x);
+  return Number.isFinite(n) ? n : null;
+}
+
+function fmtNum(x, digits = 2){
+  if (!Number.isFinite(x)) return null;
+  return Number(x).toLocaleString(undefined, { maximumFractionDigits: digits });
+}
+
 function renderPoiGroups(groups){
   if (!Array.isArray(groups) || !groups.length) return '<i>No POI found</i>';
-  return groups.map(g=>{
-    const items = (g.items||[])
-      .map(it=>`${esc(it.category)}: ${Number(it.count).toLocaleString()}`)
-      .join('<br/>');
-    return `
-      <div style="margin:6px 0;">
-        <div><b>${esc(g.group)}</b> — <span class="muted"><b>${Number(g.total).toLocaleString()}</b></span></div>
-        <div style="margin-left:10px">${items}</div>
-      </div>`;
-  }).join('');
+  return `
+    <div class="poi-grid">
+      ${groups.map(g => {
+        const items = (g.items || [])
+          .map(it => `
+            <div class="poi-item">
+              <span class="poi-bullet" aria-hidden="true"></span>
+              <span class="poi-name">${esc(it.category)}</span>
+              <span class="poi-count">${Number(it.count).toLocaleString()}</span>
+            </div>
+          `).join('') || '<div class="poi-item muted">No items</div>';
+        const badge = (g.group || 'POI').slice(0, 1).toUpperCase();
+        return `
+          <article class="poi-card">
+            <div class="poi-card__top">
+              <div class="poi-card__badge">${esc(badge)}</div>
+              <div class="poi-card__meta">
+                <div class="poi-title">${esc(g.group || 'POI')}</div>
+                <div class="poi-total">Total: ${Number(g.total || 0).toLocaleString()}</div>
+              </div>
+            </div>
+            <div class="poi-items">
+              ${items}
+            </div>
+          </article>
+        `;
+      }).join('')}
+    </div>
+  `;
 }
 
 // Sorot banyak billboard sekaligus (array of number), atau kosongkan dengan [].
@@ -234,6 +271,11 @@ function onBillboardClick(e){
   selectedBillboard = {
     id: Number(f.properties.id),
     address: f.properties.address || '',
+    size_width_m: numOrNull(f.properties.size_width_m),
+    size_height_m: numOrNull(f.properties.size_height_m),
+    view_distance_max_m: numOrNull(f.properties.view_distance_max_m),
+    best_segment: f.properties.best_segment || '',
+    best_score: numOrNull(f.properties.best_score),
     coords: f.geometry.coordinates
   };
 
@@ -254,10 +296,25 @@ function onBillboardClick(e){
 function renderOverview(bb){
   if (!bbInfoEl) return;
   bbInfoEl.classList.remove('muted');
+
+  const sizeW = fmtNum(bb.size_width_m);
+  const sizeH = fmtNum(bb.size_height_m);
+  let sizeText = '-';
+  if (sizeW && sizeH) sizeText = `${sizeW} m × ${sizeH} m`;
+  else if (sizeW) sizeText = `${sizeW} m`;
+  else if (sizeH) sizeText = `${sizeH} m`;
+
+  const viewDist = fmtNum(bb.view_distance_max_m);
+  const bestSegment = esc(bb.best_segment || '-');
+  const bestScore = fmtNum(bb.best_score, 2);
+
   bbInfoEl.innerHTML = `
     <div><b>Billboard #${bb.id}</b></div>
     <div class="muted">${esc(bb.address) || '<i>no address</i>'}</div>
     <div class="muted">Lon/Lat: ${bb.coords[0].toFixed(6)}, ${bb.coords[1].toFixed(6)}</div>
+    <div>Ukuran: <b>${sizeText}</b></div>
+    <div>Jarak pandang maks: <b>${viewDist ? `${viewDist} m` : '-'}</b></div>
+    <div>Best segment: <b>${bestSegment}</b>${bestScore ? ` (score ${bestScore})` : ''}</div>
   `;
   if (streetBtn) {
     streetBtn.disabled = false;
