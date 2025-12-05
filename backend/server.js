@@ -34,7 +34,7 @@ function toBool(x, fallback = false) {
 }
 
 async function getBillboardLonLat(id) {
-  const sql = `SELECT ST_X(geom) AS lon, ST_Y(geom) AS lat FROM webgis.billboard_new WHERE id=$1`;
+  const sql = `SELECT ST_X(geom) AS lon, ST_Y(geom) AS lat FROM webgis.billboard WHERE id=$1`;
   const { rows } = await pool.query(sql, [id]);
   if (!rows.length) throw new Error('Billboard not found');
   return rows[0]; // { lon, lat }
@@ -62,6 +62,7 @@ app.get('/api/billboards', async (_req, res) => {
     const { rows } = await pool.query(`
       SELECT
         id,
+        title,
         "address" AS address,
         ST_X(geom) AS lon,
         ST_Y(geom) AS lat,
@@ -69,8 +70,13 @@ app.get('/api/billboards', async (_req, res) => {
         size_height_m,
         view_distance_max_m,
         best_segment,
-        best_score
-      FROM webgis.billboard_new
+        best_score,
+        score_youth,
+        score_mass,
+        score_premium,
+        score_family,
+        score_commuter
+      FROM webgis.billboard
       ORDER BY id
     `);
     res.json(rows);
@@ -88,6 +94,24 @@ const SUITABILITY_COL = {
   family: 'score_family',
   commuter: 'score_commuter'
 };
+
+const SUITABILITY_LABEL = {
+  youth: 'Youth & Entertainment',
+  mass: 'Mass Market / FMCG',
+  premium: 'Premium & Lifestyle',
+  family: 'Family & Household',
+  commuter: 'Commuter & Business'
+};
+
+function resolveSegment(segment) {
+  const key = String(segment || '').toLowerCase();
+  if (!SUITABILITY_COL[key]) return null;
+  return {
+    key,
+    label: SUITABILITY_LABEL[key],
+    scoreCol: SUITABILITY_COL[key]
+  };
+}
 
 app.get('/api/hex-suitability', async (req, res) => {
   try {
@@ -182,7 +206,7 @@ app.post('/api/isochrone', async (req, res) => {
     if (mode === 'distance') {
       // buffer (geodesic) via PostGIS
       const qCircle = `
-        WITH pt AS ( SELECT geom FROM webgis.billboard_new WHERE id=$1 )
+        WITH pt AS ( SELECT geom FROM webgis.billboard WHERE id=$1 )
         SELECT ST_AsGeoJSON( ST_Buffer((SELECT geom FROM pt)::geography, $2)::geometry ) AS gj
       `;
       const rCircle = await pool.query(qCircle, [billboard_id, range_m]);
@@ -378,33 +402,99 @@ app.get('/api/geocode', async (req, res) => {
   }
 });
 
+// Shared query for nearest billboards (optionally filtered by segment)
+async function queryNearestBillboards({ lon, lat, limit, segmentKey }) {
+  const seg = resolveSegment(segmentKey);
+  const params = [lon, lat, limit];
+  const where = [];
+  const order = ['b.geom <-> ref.g']; // primary order: distance
+
+  if (seg) {
+    params.push(seg.label);
+    where.push(`b.best_segment = $${params.length}`);
+    where.push(`b.${seg.scoreCol} IS NOT NULL`);
+    order.push(`b.${seg.scoreCol} DESC NULLS LAST`);
+  }
+
+  const sql = `
+    WITH ref AS (SELECT ST_SetSRID(ST_MakePoint($1,$2),4326) AS g)
+    SELECT json_build_object(
+      'type','Feature',
+      'geometry', ST_AsGeoJSON(b.geom)::json,
+      'properties', jsonb_build_object(
+        'id', b.id,
+        'title', b.title,
+        'address', b.address,
+        'best_segment', b.best_segment,
+        'best_score', b.best_score,
+        'score_youth', b.score_youth,
+        'score_mass', b.score_mass,
+        'score_premium', b.score_premium,
+        'score_family', b.score_family,
+        'score_commuter', b.score_commuter,
+        'distance_m', ST_Distance(b.geom::geography, ref.g::geography)
+      )
+    ) AS feature
+    FROM webgis.billboard b, ref
+    ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+    ORDER BY ${order.join(', ')}
+    LIMIT $3
+  `;
+
+  const { rows } = await pool.query(sql, params);
+  return { features: rows.map(r => r.feature), segment: seg };
+}
+
+// New: segment-aware nearest billboard analysis
+// GET /api/analysis/nearest-billboards?segment=youth&lon=107.6&lat=-6.9&limit=10
+app.get('/api/analysis/nearest-billboards', async (req, res) => {
+  try {
+    const lon = Number(req.query.lon);
+    const lat = Number(req.query.lat);
+    const limit = Math.max(1, Math.min(50, Number(req.query.limit) || 10));
+    const segKey = String(req.query.segment || '').toLowerCase();
+
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
+      return res.status(400).json({ error: 'lon/lat required' });
+    }
+
+    const seg = resolveSegment(segKey);
+    if (!seg) {
+      return res.status(400).json({ error: 'segment required (youth|mass|premium|family|commuter)' });
+    }
+
+    const { features } = await queryNearestBillboards({ lon, lat, limit, segmentKey: segKey });
+    res.json({
+      type: 'FeatureCollection',
+      segment: seg,
+      features
+    });
+  } catch (err) {
+    console.error('GET /api/analysis/nearest-billboards:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Legacy fallback: nearest without segment filter, reusing the same query
 // GET /api/analysis/nearest?lon=107.61&lat=-6.91&limit=10
 app.get('/api/analysis/nearest', async (req, res) => {
   try {
     const lon = Number(req.query.lon);
     const lat = Number(req.query.lat);
     const limit = Math.max(1, Math.min(50, Number(req.query.limit) || 10));
+    const segKey = String(req.query.segment || '').toLowerCase() || null;
     if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
       return res.status(400).json({ error: 'lon/lat required' });
     }
 
-    // KNN: ORDER BY geom <-> ref (CEPAT), jarak sphere untuk info (meter)
-    const sql = `
-      WITH ref AS (
-        SELECT ST_SetSRID(ST_Point($1,$2),4326) AS g
-      )
-      SELECT
-        b.id,
-        b."address" AS address,
-        ST_X(b.geom) AS lon,
-        ST_Y(b.geom) AS lat,
-        ST_DistanceSphere(b.geom, (SELECT g FROM ref))::bigint AS dist_m
-      FROM webgis.billboard_new b
-      ORDER BY b.geom <-> (SELECT g FROM ref)
-      LIMIT $3
-    `;
-    const { rows } = await pool.query(sql, [lon, lat, limit]);
-    res.json(rows);
+    const { features } = await queryNearestBillboards({ lon, lat, limit, segmentKey: segKey });
+    res.json(features.map(f => ({
+      id: f.properties.id,
+      address: f.properties.address,
+      lon: f.geometry.coordinates[0],
+      lat: f.geometry.coordinates[1],
+      dist_m: Math.round(Number(f.properties.distance_m || 0))
+    })));
   } catch (err) {
     console.error('GET /api/analysis/nearest:', err);
     res.status(500).json({ error: err.message });

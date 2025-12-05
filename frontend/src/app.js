@@ -30,6 +30,9 @@ let rulerActive = false;
 let suitCategory = 'all'; // 'all' | youth | mass | premium | family | commuter
 let suitLayerVisible = false;
 let suitFilterOnly = false;
+let analysisResults = [];
+let analysisSegment = 'youth';
+let activeBillboardPopup = null;
 
 // ─────────────────────────────────────────────────────────────
 // Referensi DOM (SESUAIKAN ID DI index.html)
@@ -133,6 +136,37 @@ map.on('load', async () => {
     filter: ['in', ['get', 'id'], ['literal', []]]     // awalnya tidak ada yang terpilih
   });
 
+  // Layer hasil analysis (highlight & label ranking)
+  map.addSource('analysis-results', { type:'geojson', data:{ type:'FeatureCollection', features: [] } });
+  map.addLayer({
+    id: 'analysis-results-circle',
+    type: 'circle',
+    source: 'analysis-results',
+    paint: {
+      'circle-radius': 10,
+      'circle-color': '#0ea5e9',
+      'circle-opacity': 0.7,
+      'circle-stroke-width': 2,
+      'circle-stroke-color': '#0f172a'
+    }
+  });
+  map.addLayer({
+    id: 'analysis-results-label',
+    type: 'symbol',
+    source: 'analysis-results',
+    layout: {
+      'text-field': ['to-string', ['get','rank']],
+      'text-size': 12,
+      'text-offset': [0, 0.6],
+      'text-anchor': 'top'
+    },
+    paint: {
+      'text-color': '#0f172a',
+      'text-halo-color': '#e0f2fe',
+      'text-halo-width': 1.2
+    }
+  });
+
   // Ambil data billboard
   const pts = await fetch(`${API_BASE}/api/billboards`).then(r => r.json());
   map.getSource('billboards').setData({
@@ -142,12 +176,18 @@ map.on('load', async () => {
       geometry:{ type:'Point', coordinates:[+b.lon, +b.lat] },
       properties:{
         id: b.id,
+        title: b.title || '',
         address: b.address || '',
         size_width_m: b.size_width_m,
         size_height_m: b.size_height_m,
         view_distance_max_m: b.view_distance_max_m,
         best_segment: b.best_segment,
-        best_score: b.best_score
+        best_score: b.best_score,
+        score_youth: b.score_youth,
+        score_mass: b.score_mass,
+        score_premium: b.score_premium,
+        score_family: b.score_family,
+        score_commuter: b.score_commuter
       }
     }))
   });
@@ -240,6 +280,13 @@ function fmtNum(x, digits = 2){
   return Number(x).toLocaleString(undefined, { maximumFractionDigits: digits });
 }
 
+function fmtDistance(m){
+  const n = Number(m);
+  if (!Number.isFinite(n)) return '-';
+  if (n >= 1000) return `${(n/1000).toFixed(2)} km`;
+  return `${Math.round(n)} m`;
+}
+
 function renderPoiGroups(groups){
   if (!Array.isArray(groups) || !groups.length) return '<i>No POI found</i>';
   return `
@@ -290,6 +337,10 @@ function highlightBillboard(id){
 
 function getSegmentLabel() {
   return SUITABILITY_SEGMENTS[suitCategory] || '';
+}
+
+function getSegmentLabelByKey(key) {
+  return SUITABILITY_SEGMENTS[key] || '';
 }
 
 function applyBillboardStyle(){
@@ -356,10 +407,10 @@ async function refreshSuitability(){
   url.searchParams.set('category', category);
   stopSuitProgress();
   let progress = 0;
-  setSuitStatus(`Loading suitability… ${progress}%`);
+  setSuitStatus(`Loading suitability... ${progress}%`);
   suitProgressTimer = setInterval(() => {
     progress = Math.min(90, progress + 10);
-    setSuitStatus(`Loading suitability… ${progress}%`);
+    setSuitStatus(`Loading suitability... ${progress}%`);
   }, 180);
   try {
     const gj = await fetch(url).then(r => {
@@ -444,7 +495,30 @@ document.querySelectorAll('#sidebar .tab').forEach(btn=>{
 //  - Simpan pilihan & render info overview
 //  - HANYA generate isochrone jika tab aktif = "isochrone"
 // ─────────────────────────────────────────────────────────────
+function showBillboardPopup(feature) {
+  if (!feature?.geometry?.coordinates) return;
+  if (activeBillboardPopup) activeBillboardPopup.remove();
+  const props = feature.properties || {};
+  const coords = feature.geometry.coordinates;
+  const bestScore = fmtNum(numOrNull(props.best_score), 2);
+  const title = props.title || props.address || `Billboard #${props.id}`;
+  const bestSeg = props.best_segment ? esc(props.best_segment) : '-';
+  const address = props.address ? esc(props.address) : '<i>no address</i>';
+
+  const html = `
+    <div><b>${esc(title)}</b></div>
+    <div class="muted">${address}</div>
+    <div class="muted">Best: ${bestSeg}${bestScore ? ` (score ${bestScore})` : ''}</div>
+  `;
+
+  activeBillboardPopup = new maplibregl.Popup({ offset: 12, closeOnMove: true })
+    .setLngLat(coords)
+    .setHTML(html)
+    .addTo(map);
+}
+
 function onBillboardClick(e){
+  if (pickMode) return;
   const f = e.features[0];
   selectedBillboard = {
     id: Number(f.properties.id),
@@ -454,6 +528,7 @@ function onBillboardClick(e){
     view_distance_max_m: numOrNull(f.properties.view_distance_max_m),
     best_segment: f.properties.best_segment || '',
     best_score: numOrNull(f.properties.best_score),
+    title: f.properties.title || '',
     coords: f.geometry.coordinates
   };
 
@@ -462,6 +537,7 @@ function onBillboardClick(e){
 
   map.flyTo({ center: selectedBillboard.coords, zoom: Math.max(map.getZoom(), 15) });
   renderOverview(selectedBillboard);
+  showBillboardPopup(f);
 
   if (isoInsightEl) {
     isoInsightEl.innerHTML = '<span class="muted">Klik <b>Generate</b> untuk menghitung isochrone & insight.</span>';
@@ -485,9 +561,10 @@ function renderOverview(bb){
   const viewDist = fmtNum(bb.view_distance_max_m);
   const bestSegment = esc(bb.best_segment || '-');
   const bestScore = fmtNum(bb.best_score, 2);
+  const title = bb.title ? esc(bb.title) : `Billboard #${bb.id}`;
 
   bbInfoEl.innerHTML = `
-    <div><b>Billboard #${bb.id}</b></div>
+    <div><b>${title}</b> <span class="muted">#${bb.id}</span></div>
     <div class="muted">${esc(bb.address) || '<i>no address</i>'}</div>
     <div class="muted">Lon/Lat: ${bb.coords[0].toFixed(6)}, ${bb.coords[1].toFixed(6)}</div>
     <div>Ukuran: <b>${sizeText}</b></div>
@@ -529,7 +606,7 @@ async function runIsochrone(){
   const avoidHighways= !!(avoidCb?.checked);
   const nocache      = nocacheCb?.checked ? '?nocache=1' : '';
 
-  if (isoInsightEl) isoInsightEl.innerHTML = 'Menghitung…';
+  if (isoInsightEl) isoInsightEl.innerHTML = 'Menghitung...';
 
   try {
     // Geometry
@@ -600,16 +677,19 @@ const anlPickBtn   = document.getElementById('anl-pickpoint');
 const anlClearBtn  = document.getElementById('anl-clearpoint');
 const anlPtLabel   = document.getElementById('anl-pointlabel');
 const anlLimitInp  = document.getElementById('anl-limit');
-const anlNearestBtn= document.getElementById('anl-nearest');
+const anlRunBtn    = document.getElementById('anl-run');
 const anlResultsEl = document.getElementById('anl-results');
 const anlAddrInput = document.getElementById('anl-address');
 const anlGeocodeBtn = document.getElementById('anl-geocode');
+const anlSegmentSel = document.getElementById('anl-segment');
+const anlStatusEl = document.getElementById('anl-status');
+const anlSummaryEl = document.getElementById('anl-summary');
 
 // Geocode 
 anlGeocodeBtn?.addEventListener('click', async () => {
   const q = anlAddrInput.value.trim();
   if (!q) return;
-  anlResultsEl.textContent = 'Geocoding…';
+  updateAnalysisStatus('Geocoding...');
 
   try {
     const resp = await fetch(`${API_BASE}/api/geocode?text=${encodeURIComponent(q)}`);
@@ -617,7 +697,7 @@ anlGeocodeBtn?.addEventListener('click', async () => {
     const data = await resp.json();
 
     if (!data.features?.length) {
-      anlResultsEl.innerHTML = '<span class="bad">Alamat tidak ditemukan.</span>';
+      updateAnalysisStatus('Alamat tidak ditemukan.', 'bad');
       return;
     }
 
@@ -631,10 +711,10 @@ anlGeocodeBtn?.addEventListener('click', async () => {
       .addTo(map);
 
     map.flyTo({ center: [lon, lat], zoom: 14 });
-    anlResultsEl.innerHTML = `Hasil geocode: [${lat.toFixed(5)}, ${lon.toFixed(5)}]`;
+    updateAnalysisStatus(`Hasil geocode: [${lat.toFixed(5)}, ${lon.toFixed(5)}]`);
   } catch (err) {
     console.error(err);
-    anlResultsEl.innerHTML = '<span class="bad">Gagal geocoding.</span>';
+    updateAnalysisStatus('Gagal geocoding.', 'bad');
   }
 });
 
@@ -642,11 +722,29 @@ anlGeocodeBtn?.addEventListener('click', async () => {
 let pickMode  = false;     // sedang mode pick point?
 let analysisPoint   = null;      // {lon,lat}
 let analysisMarker = null;
+analysisSegment = anlSegmentSel?.value || 'youth';
+
+function updateAnalysisStatus(msg, tone = 'muted') {
+  if (!anlStatusEl) return;
+  anlStatusEl.textContent = msg;
+  anlStatusEl.className = tone;
+}
+
+if (anlSegmentSel) {
+  anlSegmentSel.addEventListener('change', () => {
+    analysisSegment = anlSegmentSel.value || 'youth';
+  });
+}
+
+updateAnalysisStatus('Pick a location and run analysis.');
 
 // Helper: set/clear titik analisis
 function setAnalysisPoint(lon, lat) {
   analysisPoint = {lon, lat};
   anlPtLabel.textContent = `[${lat.toFixed(5)}, ${lon.toFixed(5)}]`;
+  updateAnalysisStatus('Point selected. Pilih segment lalu jalankan analisis.');
+  clearAnalysisResults();
+  ensureBillboardsVisible();
 
   // Pakai marker
   if (analysisMarker) analysisMarker.remove();
@@ -659,23 +757,21 @@ function clearAnalysisPoint(){
   analysisPoint = null;
   anlPtLabel.textContent = 'no point';
   anlResultsEl.textContent = 'belum ada hasil';
+  clearAnalysisResults();
+  updateAnalysisStatus('Pick a location and run analysis.');
   if (analysisMarker) { analysisMarker.remove(); analysisMarker = null; }
 }
 
 // Aktifkan mode pick: klik peta = set titik
 anlPickBtn?.addEventListener('click', () => {
   pickMode = true;
-  anlPtLabel.textContent = 'Click on map…';
-  anlResultsEl.innerHTML = '<span class="muted">Klik peta untuk memilih titik acuan.</span>';
+  clearAnalysisResults();
+  anlPtLabel.textContent = 'Click on map...';
+  updateAnalysisStatus('Klik peta untuk memilih titik acuan.');
   map.getCanvas().style.cursor = 'crosshair';
 });
 
 // Nonaktifkan & hapus point
-anlClearBtn?.addEventListener('click', () => {
-  clearAnalysisPoint();
-  setSelectedBillboards([]);  // hapus highlight
-});
-
 // Tangkap klik peta khusus saat mode pick aktif
 map.on('click', (e) => {
   if (!pickMode) return;
@@ -695,61 +791,150 @@ map.on('click', 'billboards', (e) => {
   onBillboardClick(e);
 });
 
+function clearAnalysisResults(){
+  analysisResults = [];
+  if (map.getSource('analysis-results')) {
+    map.getSource('analysis-results').setData({ type:'FeatureCollection', features: [] });
+  }
+  setSelectedBillboards([]);
+  if (anlResultsEl) {
+    anlResultsEl.innerHTML = 'No analysis yet.';
+    anlResultsEl.classList.add('muted');
+  }
+  if (anlSummaryEl) anlSummaryEl.textContent = 'No results yet.';
+}
 
-// Panggil API nearest
-anlNearestBtn?.addEventListener('click', async () => {
+function handleAnalysisFeatureClick(feature){
+  if (!feature) return;
+  const coords = feature.geometry?.coordinates;
+  const props = feature.properties || {};
+  if (activeTab !== 'analysis') setTab('analysis');
+  setSelectedBillboards([props.id]);
+  if (coords) {
+    map.flyTo({ center: coords, zoom: Math.max(map.getZoom(), 13) });
+  }
+  // gunakan data billboard asli jika tersedia untuk melengkapi detail popup
+  const rendered = map.queryRenderedFeatures({ layers: ['billboards'], filter: ['==', ['get','id'], props.id] })?.[0];
+  const targetFeature = rendered || feature;
+  onBillboardClick({ features: [targetFeature] });
+}
+
+function renderAnalysisResults(fc, segmentKey){
+  const features = (fc?.features || []).map((f, idx) => ({
+    ...f,
+    properties: { ...(f.properties || {}), rank: idx + 1, segment: segmentKey }
+  }));
+  analysisResults = features;
+
+  if (map.getSource('analysis-results')) {
+    map.getSource('analysis-results').setData({ type:'FeatureCollection', features });
+  }
+
+  const segLabel = getSegmentLabelByKey(segmentKey);
+  if (!features.length) {
+    if (anlResultsEl) anlResultsEl.innerHTML = '<i>No billboards found.</i>';
+    if (anlSummaryEl) anlSummaryEl.textContent = `0 results for ${segLabel || segmentKey}.`;
+    return;
+  }
+
+  if (anlSummaryEl) {
+    anlSummaryEl.textContent = `${features.length} billboards for ${segLabel || segmentKey}`;
+  }
+
+  if (anlResultsEl) {
+    anlResultsEl.classList.remove('muted');
+    anlResultsEl.innerHTML = features.map(f => {
+      const p = f.properties || {};
+      const scoreKey = `score_${segmentKey}`;
+      const segScore = fmtNum(numOrNull(p[scoreKey]), 2);
+      const bestScore = fmtNum(numOrNull(p.best_score), 2);
+      const distance = fmtDistance(p.distance_m);
+      const title = esc(p.title || p.address || `Billboard #${p.id}`);
+      const addr = esc(p.address || '');
+      return `
+        <article class="analysis-card" data-id="${p.id}">
+          <div class="analysis-card__top">
+            <span class="analysis-rank">${p.rank}</span>
+            <div class="analysis-distance">${distance}</div>
+          </div>
+          <div><b>${title}</b></div>
+          <div class="muted">${addr || '<i>no address</i>'}</div>
+          <div class="muted">Best: ${esc(p.best_segment || '-')}${bestScore ? ` (score ${bestScore})` : ''}</div>
+          <div class="score-chip">Segment score: ${segScore ?? '-'}</div>
+        </article>
+      `;
+    }).join('');
+
+    anlResultsEl.querySelectorAll('.analysis-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const id = Number(card.dataset.id);
+        const feature = analysisResults.find(f => Number(f.properties?.id) === id);
+        if (feature) handleAnalysisFeatureClick(feature);
+      });
+    });
+  }
+
+  setSelectedBillboards(features.map(f => f.properties?.id).filter(Boolean));
+}
+
+map.on('click','analysis-results-circle', (e) => {
+  if (e.features?.[0]) handleAnalysisFeatureClick(e.features[0]);
+});
+map.on('click','analysis-results-label', (e) => {
+  if (e.features?.[0]) handleAnalysisFeatureClick(e.features[0]);
+});
+
+function ensureBillboardsVisible(){
+  if (chkBB) {
+    chkBB.checked = true;
+    chkBB.onchange?.();
+  }
+  if (map.getLayer('billboards')) {
+    map.setLayoutProperty('billboards','visibility','visible');
+  }
+}
+
+async function runAnalysis(){
   try {
     if (!analysisPoint) {
-      anlResultsEl.innerHTML = '<span class="bad">Tentukan titik dulu (Pick point).</span>';
+      if (anlResultsEl) anlResultsEl.innerHTML = '<span class="bad">Tentukan titik dulu.</span>';
+      updateAnalysisStatus('Tentukan titik dulu.', 'bad');
       return;
     }
-    const limit = Math.max(1, Math.min(50, Number(anlLimitInp.value) || 10));
-    anlResultsEl.innerHTML = 'Mencari…';
+    const limit = Math.max(1, Math.min(50, Number(anlLimitInp?.value) || 10));
+    const segmentKey = analysisSegment || 'youth';
+    updateAnalysisStatus('Running analysis...');
+    ensureBillboardsVisible();
+    clearAnalysisResults();
 
-    const url = new URL(`${API_BASE}/api/analysis/nearest`);
+    const url = new URL(`${API_BASE}/api/analysis/nearest-billboards`);
     url.searchParams.set('lon', analysisPoint.lon);
     url.searchParams.set('lat', analysisPoint.lat);
     url.searchParams.set('limit', limit);
+    url.searchParams.set('segment', segmentKey);
 
-    const rows = await fetch(url).then(r => r.json());
+    const fc = await fetch(url).then(r => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    });
 
-    if (!Array.isArray(rows) || rows.length === 0) {
-      anlResultsEl.innerHTML = '<i>Tidak ada hasil.</i>';
+    if (!fc?.features?.length) {
+      updateAnalysisStatus('Tidak ada hasil untuk titik ini.');
+      renderAnalysisResults({ features: [] }, segmentKey);
       return;
     }
 
-    // Render list hasil + interaksi klik untuk fly & highlight
-    const html = rows.map(r => {
-      const km = (Number(r.dist_m)/1000).toFixed(2);
-      return `
-        <div class="anl-item" data-id="${r.id}" data-lon="${r.lon}" data-lat="${r.lat}">
-          <div><b>#${r.id}</b> — ${esc(r.address) || '<i>(no address)</i>'}</div>
-          <div class="muted">${km} km</div>
-        </div>
-      `;
-    }).join('');
-    anlResultsEl.innerHTML = html;
-
-    // Sorot SEMUA hasil nearest dengan warna kuning
-    setSelectedBillboards(rows.map(r => r.id));
-
-    // pasang click handler untuk tiap item
-    anlResultsEl.querySelectorAll('.anl-item').forEach(div => {
-      div.addEventListener('click', () => {
-        const id  = Number(div.dataset.id);
-        const lon = Number(div.dataset.lon);
-        const lat = Number(div.dataset.lat);
-
-        // sorot marker billboard (pakai fungsi highlight yang sudah ada)
-        setSelectedBillboards([id]);
-
-        map.flyTo({ center:[lon,lat], zoom: Math.max(map.getZoom(), 13) });
-      });
-    });
-
+    updateAnalysisStatus(`Menemukan ${fc.features.length} billboard terdekat.`);
+    renderAnalysisResults(fc, segmentKey);
   } catch (err) {
     console.error(err);
-    anlResultsEl.innerHTML = '<span class="bad">Gagal mencari nearest.</span>';
+    updateAnalysisStatus('Gagal menjalankan analisis.', 'bad');
   }
-});
+}
 
+if (anlRunBtn) anlRunBtn.addEventListener('click', runAnalysis);
+if (anlClearBtn) anlClearBtn.addEventListener('click', () => {
+  clearAnalysisPoint();
+  clearAnalysisResults();
+  updateAnalysisStatus('Pick a location and run analysis.');
+});

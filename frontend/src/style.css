@@ -770,7 +770,8 @@ body.map-page {
 #anl-geocode,
 #anl-pickpoint,
 #anl-clearpoint,
-#anl-nearest {
+#anl-nearest,
+#anl-run {
   padding: 8px 12px;
   border-radius: 10px;
   border: 1px solid var(--color-border);
@@ -804,11 +805,99 @@ body.map-page {
 #anl-clearpoint:hover,
 #anl-clearpoint:focus-visible,
 #anl-nearest:hover,
-#anl-nearest:focus-visible {
+#anl-nearest:focus-visible,
+#anl-run:hover,
+#anl-run:focus-visible {
   border-color: rgba(125, 211, 252, 0.8);
   box-shadow: 0 0 0 4px rgba(125, 211, 252, 0.15);
   transform: translateY(-1px);
   outline: none;
+}
+
+.analysis-results {
+  margin-top: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--color-surface-strong);
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.analysis-results__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.analysis-results__summary {
+  font-size: var(--font-size-sm);
+}
+
+.analysis-results__list {
+  display: grid;
+  gap: 10px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.analysis-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 10px;
+  display: grid;
+  gap: 4px;
+  cursor: pointer;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.analysis-card:hover,
+.analysis-card:focus-visible {
+  border-color: rgba(125, 211, 252, 0.8);
+  box-shadow: 0 8px 24px rgba(14, 165, 233, 0.18);
+  transform: translateY(-2px);
+  outline: none;
+}
+
+.analysis-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.analysis-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+  color: var(--color-heading);
+  font-weight: 800;
+}
+
+.analysis-distance {
+  color: var(--color-muted);
+  font-size: var(--font-size-sm);
+}
+
+.score-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 10px;
+  background: rgba(125, 211, 252, 0.1);
+  border: 1px solid rgba(125, 211, 252, 0.3);
+  color: var(--color-heading);
+  font-size: var(--font-size-sm);
+}
+
+.score-chip--best {
+  background: rgba(248, 250, 252, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
 }
 
 .tabpanes h3 {

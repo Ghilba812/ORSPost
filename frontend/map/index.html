@@ -138,31 +138,51 @@
         </section>
 
         <section id="tab-analysis" class="pane">
-          <h3>Nearest Billboard Analysis</h3>
+          <h3>Advertising Analysis</h3>
 
-          <div class="row">
-            <input id="anl-address" type="text" placeholder="Enter Adress…" style="width:200px"/>
-            <button id="anl-geocode">Geocode & Find</button>
+          <div class="group">
+            <div class="muted">Advertising segment</div>
+            <select id="anl-segment" style="width:100%;">
+              <option value="youth">Youth &amp; Entertainment</option>
+              <option value="mass">Mass Market / FMCG</option>
+              <option value="premium">Premium &amp; Lifestyle</option>
+              <option value="family">Family &amp; Household</option>
+              <option value="commuter">Commuter &amp; Business</option>
+            </select>
           </div>
 
-          <div>
-            <p>OR</p>
+          <div class="group">
+            <div class="muted">Target location</div>
+            <div class="row">
+              <input id="anl-address" type="text" placeholder="Enter address" style="width:200px"/>
+              <button id="anl-geocode">Geocode &amp; Find</button>
+            </div>
+            <div class="row">
+              <button id="anl-pickpoint">Pick point on map</button>
+              <button id="anl-clearpoint" class="buttonClear">Clear</button>
+              <span class="muted" id="anl-pointlabel">no point</span>
+            </div>
           </div>
 
-          <div class="row">
-            <button id="anl-pickpoint">Pick point on map</button>
-            <span class="muted" id="anl-pointlabel">no point</span>
-            <button id="anl-clearpoint" class="buttonClear">Clear</button>
+          <div class="group">
+            <div class="row" style="margin: 6px 0 4px;">
+              <label>Limit</label>
+              <input id="anl-limit" type="number" value="10" min="1" max="50" style="width:70px"/>
+              <button id="anl-run" class="buttonGen">Run analysis</button>
+            </div>
+            <div id="anl-status" class="muted">Pick a location and run analysis.</div>
           </div>
 
-          <div class="row" style="margin: 10px 0 10px;">
-            <label>Limit</label>
-            <input id="anl-limit" type="number" value="10" min="1" max="50" style="width:70px"/>
-            <button id="anl-nearest" class="buttonGen">Find nearest billboards</button>
+          <div class="analysis-results">
+            <div class="analysis-results__header">
+              <div>
+                <div class="muted">Results</div>
+                <div id="anl-summary" class="analysis-results__summary muted">No results yet.</div>
+              </div>
+            </div>
+            <div id="anl-results" class="analysis-results__list muted">No analysis yet.</div>
           </div>
-
-      <div id="anl-results" class="muted">Belum ada hasil.</div>
-    </section>
+        </section>
     </div>
   </div>
 
