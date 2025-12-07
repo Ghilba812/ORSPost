@@ -33,6 +33,8 @@ let suitFilterOnly = false;
 let analysisResults = [];
 let analysisSegment = 'youth';
 let activeBillboardPopup = null;
+let billboardFeatures = [];
+let billboardIndex = new Map();
 
 // ─────────────────────────────────────────────────────────────
 // Referensi DOM (SESUAIKAN ID DI index.html)
@@ -43,6 +45,9 @@ const apiStatusEl = document.getElementById('apiStatus');
 // Overview tab
 const bbInfoEl    = document.getElementById('bb-info');
 const streetBtn   = document.getElementById('btn-streetview');
+const overviewSearchInput = document.getElementById('bb-search-overview');
+const overviewSearchBtn = document.getElementById('bb-search-overview-btn');
+const overviewSearchStatus = document.getElementById('bb-search-overview-status');
 
 // Isochrone tab (form & output)
 const modeSel       = document.getElementById('mode');
@@ -57,6 +62,9 @@ const nocacheCb     = document.getElementById('nocache');
 const isoInsightEl  = document.getElementById('iso-insight'); // container hasil isochrone
 const clearBtn      = document.getElementById('clearBtn');
 const genBtn        = document.getElementById('genBtn'); // optional tombol Generate
+const isoSearchInput = document.getElementById('bb-search-iso');
+const isoSearchBtn = document.getElementById('bb-search-iso-btn');
+const isoSearchStatus = document.getElementById('bb-search-iso-status');
 
 // Layer toggles (opsional)
 const chkBB  = document.getElementById('ly-billboards');
@@ -169,29 +177,33 @@ map.on('load', async () => {
 
   // Ambil data billboard
   const pts = await fetch(`${API_BASE}/api/billboards`).then(r => r.json());
+  billboardFeatures = pts.map(b => ({
+    type:'Feature',
+    geometry:{ type:'Point', coordinates:[+b.lon, +b.lat] },
+    properties:{
+      id: b.id,
+      title: b.title || '',
+      address: b.address || '',
+      size_width_m: b.size_width_m,
+      size_height_m: b.size_height_m,
+      view_distance_max_m: b.view_distance_max_m,
+      best_segment: b.best_segment,
+      best_score: b.best_score,
+      score_youth: b.score_youth,
+      score_mass: b.score_mass,
+      score_premium: b.score_premium,
+      score_family: b.score_family,
+      score_commuter: b.score_commuter
+    }
+  }));
+  billboardIndex = new Map(billboardFeatures.map(f => [Number(f.properties.id), f]));
   map.getSource('billboards').setData({
     type:'FeatureCollection',
-    features: pts.map(b => ({
-      type:'Feature',
-      geometry:{ type:'Point', coordinates:[+b.lon, +b.lat] },
-      properties:{
-        id: b.id,
-        title: b.title || '',
-        address: b.address || '',
-        size_width_m: b.size_width_m,
-        size_height_m: b.size_height_m,
-        view_distance_max_m: b.view_distance_max_m,
-        best_segment: b.best_segment,
-        best_score: b.best_score,
-        score_youth: b.score_youth,
-        score_mass: b.score_mass,
-        score_premium: b.score_premium,
-        score_family: b.score_family,
-        score_commuter: b.score_commuter
-      }
-    }))
+    features: billboardFeatures
   });
   applyBillboardStyle();
+  setSearchStatus(overviewSearchStatus, 'Masukkan ID untuk memilih billboard.', 'muted');
+  setSearchStatus(isoSearchStatus, 'Masukkan ID untuk memilih billboard.', 'muted');
 
   // UX pointer
   map.on('mouseenter','billboards',() => map.getCanvas().style.cursor='pointer');
@@ -333,6 +345,51 @@ function setSelectedBillboards(ids = []) {
 // (opsional) alias lama biar kode lain tetap jalan
 function highlightBillboard(id){
   setSelectedBillboards([id]);
+}
+
+function setSearchStatus(el, msg, tone = 'muted') {
+  if (!el) return;
+  el.textContent = msg;
+  el.className = tone;
+}
+
+function selectBillboardById(rawId){
+  if (!billboardIndex?.size) return { ok:false, reason:'Data billboard belum siap.' };
+  const id = Number(rawId);
+  if (!Number.isFinite(id)) return { ok:false, reason:'Masukkan ID yang valid.' };
+  const feature = billboardIndex.get(id);
+  if (!feature) return { ok:false, reason:`Billboard #${id} tidak ditemukan.` };
+  pickMode = false;
+  map.getCanvas().style.cursor = '';
+  onBillboardClick({ features: [feature] });
+  if (feature.geometry?.coordinates) {
+    map.flyTo({ center: feature.geometry.coordinates, zoom: Math.max(map.getZoom(), 15) });
+  }
+  return { ok:true };
+}
+
+function bindBillboardSearch(inputEl, btnEl, statusEl){
+  if (!inputEl || !btnEl) return;
+  const run = () => {
+    const val = inputEl.value.trim();
+    if (!val) {
+      setSearchStatus(statusEl, 'Masukkan ID billboard.', 'muted');
+      return;
+    }
+    const res = selectBillboardById(val);
+    if (res.ok) {
+      setSearchStatus(statusEl, `Billboard #${Number(val)} terpilih.`, 'ok');
+    } else {
+      setSearchStatus(statusEl, res.reason, 'bad');
+    }
+  };
+  btnEl.addEventListener('click', run);
+  inputEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      run();
+    }
+  });
 }
 
 function getSegmentLabel() {
@@ -580,8 +637,16 @@ function renderOverview(bb){
 // ─────────────────────────────────────────────────────────────
 // Buka Google Street View pada titik billboard
 // ─────────────────────────────────────────────────────────────
+function buildStreetViewUrl(lat, lon){
+  const latNum = Number(lat);
+  const lonNum = Number(lon);
+  if (!Number.isFinite(latNum) || !Number.isFinite(lonNum)) return null;
+  return `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${latNum},${lonNum}`;
+}
+
 function openStreetView(lat, lon){
-  const url = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lon}`;
+  const url = buildStreetViewUrl(lat, lon);
+  if (!url) return;
   window.open(url, '_blank');
 }
 
@@ -671,6 +736,9 @@ if (clearBtn) clearBtn.addEventListener('click', () => {
   setSelectedBillboards([]);
   if (isoInsightEl) isoInsightEl.innerHTML = 'Klik billboard lalu tekan <b>Generate</b>.';
 });
+
+bindBillboardSearch(overviewSearchInput, overviewSearchBtn, overviewSearchStatus);
+bindBillboardSearch(isoSearchInput, isoSearchBtn, isoSearchStatus);
 
 // ===== Analysis tab DOM =====
 const anlPickBtn   = document.getElementById('anl-pickpoint');
@@ -851,15 +919,20 @@ function renderAnalysisResults(fc, segmentKey){
       const distance = fmtDistance(p.distance_m);
       const title = esc(p.title || p.address || `Billboard #${p.id}`);
       const addr = esc(p.address || '');
+      const coords = Array.isArray(f.geometry?.coordinates) ? f.geometry.coordinates : [];
+      const lon = Number(coords[0]);
+      const lat = Number(coords[1]);
+      const streetUrl = buildStreetViewUrl(lat, lon);
       return `
         <article class="analysis-card" data-id="${p.id}">
           <div class="analysis-card__top">
             <span class="analysis-rank">${p.rank}</span>
             <div class="analysis-distance">${distance}</div>
           </div>
-          <div><b>${title}</b></div>
+          <div><b>${title}</b> <span class="muted">#${p.id}</span></div>
           <div class="muted">${addr || '<i>no address</i>'}</div>
           <div class="muted">Best: ${esc(p.best_segment || '-')}${bestScore ? ` (score ${bestScore})` : ''}</div>
+          ${streetUrl ? `<div class="analysis-actions"><a class="analysis-link" href="${streetUrl}" target="_blank" rel="noopener noreferrer">Street View</a></div>` : ''}
           <div class="score-chip">Segment score: ${segScore ?? '-'}</div>
         </article>
       `;
@@ -870,6 +943,11 @@ function renderAnalysisResults(fc, segmentKey){
         const id = Number(card.dataset.id);
         const feature = analysisResults.find(f => Number(f.properties?.id) === id);
         if (feature) handleAnalysisFeatureClick(feature);
+      });
+      card.querySelectorAll('.analysis-link').forEach(link => {
+        link.addEventListener('click', (evt) => {
+          evt.stopPropagation();
+        });
       });
     });
   }

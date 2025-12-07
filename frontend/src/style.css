@@ -883,6 +883,33 @@ body.map-page {
   font-size: var(--font-size-sm);
 }
 
+.analysis-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+.analysis-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: rgba(125, 211, 252, 0.08);
+  border: 1px solid rgba(125, 211, 252, 0.3);
+  color: var(--color-heading);
+  font-size: var(--font-size-sm);
+  text-decoration: none;
+}
+
+.analysis-link:hover,
+.analysis-link:focus-visible {
+  color: #ffffff;
+  border-color: rgba(125, 211, 252, 0.6);
+  outline: none;
+}
+
 .score-chip {
   display: inline-flex;
   align-items: center;

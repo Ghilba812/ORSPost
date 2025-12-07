@@ -2,268 +2,382 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Isochrone WebGIS</title>
+  <title>Billboard Location Analysis WebGIS</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-  <!-- MapLibre -->
-  <link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet" />
-  <script src="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.js"></script>
-
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    html, body, #map { height: 100%; margin: 0; }
-    .panel {
-      position:absolute; top:10px; left:10px; z-index:3;
-      background:#fff; padding:10px 12px; border-radius:8px;
-      box-shadow:0 2px 10px rgba(0,0,0,.15);
-      font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      width: 300px; max-height: 90vh; overflow:auto;
+    :root {
+      --bg: #070d1b;
+      --panel: #0f1d36;
+      --muted: #9ca3af;
+      --accent: #66e0c2;
+      --accent-2: #7dd3fc;
+      --text: #e5e7eb;
+      --border: #1f2937;
     }
-    .muted { color:#6b7280; }
-    .ok { color:#0a7a0a; } .bad { color:#b00020; }
-    .row { margin: 6px 0; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
-    select, input[type="number"] { padding:2px 4px; }
-    code { background:#f2f4f7; padding:1px 4px; border-radius:4px; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Space Grotesk", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at 20% 20%, rgba(102,224,194,0.08), transparent 25%),
+                  radial-gradient(circle at 80% 0%, rgba(125,211,252,0.08), transparent 22%),
+                  linear-gradient(145deg, #050911 0%, #0b1323 45%, #0a0f1e 100%);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+    .page { min-height: 100vh; display: flex; flex-direction: column; }
+    header {
+      padding: 18px 24px;
+      position: sticky; top: 0; z-index: 10;
+      background: rgba(7, 13, 27, 0.9);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav {
+      max-width: 1200px; margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: 0.4px; font-size: 16px; }
+    .logo-mark {
+      width: 32px; height: 32px; border-radius: 10px;
+      background: linear-gradient(135deg, #66e0c2, #3fb0ff);
+      display: grid; place-items: center; color: #031019; font-weight: 800;
+    }
+    .nav-links { display: flex; gap: 14px; color: var(--muted); font-size: 14px; flex-wrap: wrap; }
+    .nav-links a:hover { color: #fff; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 10px 16px; border-radius: 12px; border: 1px solid transparent;
+      font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.2s ease;
+    }
+    .btn-primary {
+      background: linear-gradient(120deg, #66e0c2, #3fb0ff);
+      color: #04101b;
+      box-shadow: 0 10px 30px rgba(102,224,194,0.25);
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 14px 40px rgba(125,211,252,0.28); }
+    .btn-ghost { border: 1px solid var(--border); color: #fff; background: rgba(255,255,255,0.04); }
+    .btn-ghost:hover { border-color: rgba(125,211,252,0.4); color: #e5e7eb; }
+    main { flex: 1; }
+    .section { padding: 64px 24px; }
+    .container { max-width: 1100px; margin: 0 auto; }
+    .eyebrow { color: var(--accent); font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; font-size: 12px; margin-bottom: 10px; }
+    h1, h2, h3 { margin: 0 0 14px; line-height: 1.2; letter-spacing: -0.01em; }
+    h1 { font-size: clamp(32px, 5vw, 46px); }
+    h2 { font-size: clamp(24px, 3vw, 32px); }
+    h3 { font-size: 20px; }
+    .muted { color: var(--muted); }
+    .lead { font-size: 17px; max-width: 800px; color: #cdd2db; }
+    .hero { padding: 80px 24px 60px; }
+    .hero-grid { display: grid; grid-template-columns: 1.15fr 0.9fr; gap: 26px; align-items: center; }
+    .hero-panel {
+      background: linear-gradient(160deg, rgba(255,255,255,0.04), rgba(102,224,194,0.08));
+      border: 1px solid var(--border); border-radius: 18px; padding: 22px;
+      position: relative; overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,0.35);
+    }
+    .hero-panel::after {
+      content: ""; position: absolute; inset: 0;
+      background: radial-gradient(circle at 60% 10%, rgba(102,224,194,0.14), transparent 30%),
+                  radial-gradient(circle at 10% 80%, rgba(63,176,255,0.14), transparent 26%);
+      pointer-events: none;
+    }
+    .panel-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-top: 14px; }
+    .stat { background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
+    .stat .label { color: var(--muted); font-size: 13px; }
+    .stat .value { font-size: 20px; font-weight: 700; }
+    .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; margin: 20px 0 16px; }
+    .hero-highlights { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 10px; }
+    .chip { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; background: rgba(255,255,255,0.03); color: #cdd2db; display: flex; gap: 8px; align-items: center; font-size: 14px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 6px rgba(102,224,194,0.08); }
+    .badge {
+      display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px;
+      border-radius: 999px; background: rgba(102,224,194,0.12);
+      color: var(--accent); font-size: 12px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase;
+    }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin-top: 18px; }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 16px 16px 18px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+    .card h3 { margin-bottom: 6px; }
+    .feature-num { width: 32px; height: 32px; border-radius: 10px; background: rgba(125,211,252,0.18); color: #e0f2fe; display: grid; place-items: center; font-weight: 700; margin-bottom: 10px; }
+    .list { margin: 10px 0 0; padding-left: 16px; color: #d1d5db; }
+    .list li { margin: 6px 0; }
+    .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; margin-top: 16px; }
+    .pill-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+    .pill { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); background: rgba(255,255,255,0.04); color: #cfd7e3; font-size: 13px; }
+    .placeholder-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 12px; }
+    .placeholder { border: 1px dashed rgba(125,211,252,0.4); border-radius: 14px; padding: 18px; background: rgba(255,255,255,0.02); text-align: center; color: #cdeefd; font-weight: 600; }
+    .cta { background: linear-gradient(140deg, rgba(102,224,194,0.1), rgba(63,176,255,0.12)); border: 1px solid var(--border); border-radius: 18px; padding: 28px; text-align: center; box-shadow: 0 12px 30px rgba(0,0,0,0.35); }
+    .footer { padding: 28px 24px 40px; color: var(--muted); border-top: 1px solid var(--border); background: #060a14; text-align: center; }
+    @media (max-width: 900px) { .hero-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 600px) { .hero { padding-top: 72px; } .hero-actions { flex-direction: column; } .btn { width: 100%; justify-content: center; } }
   </style>
 </head>
 <body>
-  <div id="map"></div>
-
-  <div class="panel">
-    <div><b>API:</b> <span id="apiStatus">checking…</span></div>
-
-    <div class="row">
-      <label>Mode</label>
-      <select id="mode">
-        <option value="time" selected>Time (minutes)</option>
-        <option value="distance">Distance (km)</option>
-      </select>
-
-      <label id="lbl-min">Minutes</label>
-      <input id="minutes" type="number" value="10" min="1" max="60" style="width:66px;" />
-
-      <label id="lbl-dist" style="display:none;">Km</label>
-      <input id="distance_km" type="number" value="2" min="0.1" max="20" step="0.1" style="width:66px; display:none;" />
-    </div>
-
-    <div class="row" id="row-profile">
-      <label>Profile</label>
-      <select id="profile" style="width:130px;">
-        <option value="driving-car" selected>driving-car</option>
-        <option value="cycling-regular">cycling-regular</option>
-        <option value="foot-walking">foot-walking</option>
-      </select>
-    </div>
-
-    <div class="row" id="row-traffic">
-      <label>Traffic</label>
-      <select id="traffic" style="width:130px;">
-        <option value="normal">Normal (1.0)</option>
-        <option value="light">Rendah (0.75)</option>
-        <option value="moderate">Sedang (0.50)</option>
-        <option value="heavy" selected>Padat (0.25)</option>
-      </select>
-    </div>
-
-    <div class="row" id="row-avoid">
-      <label><input id="avoidHighways" type="checkbox" /> avoid highways</label>
-      <label class="muted" title="Bypass server cache untuk debugging">
-        <input id="nocache" type="checkbox" /> nocache (debug)
-      </label>
-    </div>
-
-    <div class="row" style="margin-top:6px;">
-      <button id="clearBtn" style="padding:4px 10px; cursor:pointer;">Clear</button>
-    </div>
-
-    <div class="muted" style="margin:8px 0 10px;">
-      <div><b>Tips:</b></div>
-      <div>• <b>Time 10 min</b> ≈ radius iklan cepat <b>±2–3 km</b> (kota besar).</div>
-      <div>• Toggle <i>avoid highways</i> untuk hasil realistis di dalam kota.</div>
-      <div>• Gunakan <i>Traffic</i> untuk pilihan kemacetan.</div>
-    </div>
-
-    <div id="insight" class="muted">Klik titik billboard untuk melihat isochrone & insight.</div>
-  </div>
-
-  <script>
-    // ==== CONFIG ====
-    const MAPTILER_KEY = 'uB1xPzkkEbN7p3tvPchy'; // ganti dengan key kamu
-    const API_BASE = 'http://127.0.0.1:3000';
-
-    // ==== MAP ====
-    const map = new maplibregl.Map({
-      container: 'map',
-      style: `https://api.maptiler.com/maps/streets-v2/style.json?key=${MAPTILER_KEY}`,
-      center: [107.6098, -6.9147], // Bandung
-      zoom: 12
-    });
-
-    // health check
-    const apiStatusEl = document.getElementById('apiStatus');
-    fetch(`${API_BASE}/healthz`).then(r => r.ok ? r.json() : Promise.reject())
-      .then(() => { apiStatusEl.textContent = 'OK'; apiStatusEl.className = 'ok'; })
-      .catch(() => { apiStatusEl.textContent = 'OFFLINE'; apiStatusEl.className = 'bad'; });
-
-    // inputs
-    const modeSel = document.getElementById('mode');
-    const minutesInput = document.getElementById('minutes');
-    const distanceInput = document.getElementById('distance_km');
-    const lblMin = document.getElementById('lbl-min');
-    const lblDist = document.getElementById('lbl-dist');
-    const profileSel = document.getElementById('profile');
-    const trafficSel = document.getElementById('traffic');
-    const avoidCb = document.getElementById('avoidHighways');
-    const nocacheCb = document.getElementById('nocache');
-    const insightEl = document.getElementById('insight');
-    const rowProfile = document.getElementById('row-profile');
-
-    function updateUIVisibility() {
-      const isTime = modeSel.value === 'time';
-      const isFoot = profileSel.value === 'foot-walking';
-
-      // toggle time vs distance inputs
-      minutesInput.style.display = isTime ? '' : 'none';
-      lblMin.style.display = isTime ? '' : 'none';
-      distanceInput.style.display = isTime ? 'none' : '';
-      lblDist.style.display = isTime ? 'none' : '';
-
-      // toggle traffic
-      if (!isTime || isFoot) {
-        document.getElementById('row-traffic').style.display = 'none';
-      } else {
-        document.getElementById('row-traffic').style.display = '';
-      }
-
-      // toggle avoidHighways
-      if (!isTime || isFoot) {
-        document.getElementById('row-avoid').style.display = 'none';
-      } else {
-        document.getElementById('row-avoid').style.display = '';
-      }
-        // kalau distance → sembunyikan profile
-      rowProfile.style.display = isTime ? '' : 'none';
-    }
-
-    // panggil setiap kali ada perubahan
-    modeSel.addEventListener('change', updateUIVisibility);
-    profileSel.addEventListener('change', updateUIVisibility);
-
-    // panggil sekali di awal
-    updateUIVisibility();
-
-
-    // ==== SOURCES / LAYERS ====
-    map.on('load', async () => {
-      map.addSource('iso', { type:'geojson', data:{ type:'FeatureCollection', features:[] }});
-      map.addLayer({ id:'iso-fill', type:'fill', source:'iso',
-        paint:{ 'fill-color':'#4b61d1', 'fill-opacity':0.28 }});
-      map.addLayer({ id:'iso-outline', type:'line', source:'iso',
-        paint:{ 'line-color':'#2f3e8f', 'line-width':1 }});
-
-      map.addSource('billboards', { type:'geojson', data:{ type:'FeatureCollection', features:[] }});
-      map.addLayer({ id:'billboards', type:'circle', source:'billboards',
-        paint:{ 'circle-radius':5, 'circle-color':'#e4572e', 'circle-stroke-width':1, 'circle-stroke-color':'#fff' }});
-
-      const pts = await fetch(`${API_BASE}/api/billboards`).then(r => r.json());
-      map.getSource('billboards').setData({
-        type:'FeatureCollection',
-        features: pts.map(b => ({
-          type:'Feature',
-          geometry:{ type:'Point', coordinates:[+b.lon, +b.lat] },
-          properties:{ id:b.id, address:b.address }
-        }))
-      });
-
-      map.on('mouseenter','billboards',() => map.getCanvas().style.cursor='pointer');
-      map.on('mouseleave','billboards',() => map.getCanvas().style.cursor='');
-
-      map.on('click','billboards', onBillboardClick);
-    });
-
-    async function onBillboardClick(e){
-      const f = e.features[0];
-      const id = Number(f.properties.id);
-
-      const mode = modeSel.value;
-      const minutes = Number(minutesInput.value) || 10;
-      const distance_km = Number(distanceInput.value) || 2;
-      const profile = profileSel.value;
-      const traffic = trafficSel.value;
-      const avoidHighways = !!avoidCb.checked;
-      const nocache = nocacheCb.checked ? '?nocache=1' : '';
-
-      map.flyTo({ center: f.geometry.coordinates, zoom: Math.max(map.getZoom(), 12) });
-
-      showInsight({ loading:true, id, mode, minutes, distance_km, profile, traffic });
-
-      try {
-        const iso = await fetch(`${API_BASE}/api/isochrone${nocache}`, {
-          method:'POST',
-          headers:{ 'Content-Type':'application/json' },
-          body: JSON.stringify({ billboard_id:id, mode, minutes, distance_km, profile, traffic, avoidHighways })
-        }).then(r => r.json());
-
-        if (iso?.feature?.geometry) {
-          map.getSource('iso').setData({ type:'FeatureCollection', features:[iso.feature] });
-        } else {
-          map.getSource('iso').setData({ type:'FeatureCollection', features:[] });
-        }
-
-        const out = await fetch(`${API_BASE}/api/iso-insights`, {
-          method:'POST',
-          headers:{ 'Content-Type':'application/json' },
-          body: JSON.stringify({ billboard_id:id, mode, minutes, distance_km, profile, traffic, avoidHighways })
-        }).then(r => r.json());
-
-        showInsight({
-          loading:false, id, mode, minutes, distance_km, profile, traffic,
-          population: out?.population ?? 0,
-          categories: out?.categories ?? []
-        });
-      } catch(err){
-        console.error(err);
-        showInsight({ error:true });
-      }
-    }
-
-    function showInsight(opts){
-      if (opts.loading) {
-        insightEl.innerHTML = `Billboard <b>#${opts.id}</b><br/>
-          Generating <code>${opts.profile}</code> — ${opts.mode === 'time'
-            ? `${opts.minutes} min`
-            : `${opts.distance_km} km`} — traffic <code>${opts.traffic}</code>…`;
-        return;
-      }
-      if (opts.error) {
-        insightEl.innerHTML = `<span class="bad">Error fetching data.</span>`;
-        return;
-      }
-
-      const list = (opts.categories||[])
-        .map(c => `${c.category}: <b>${Number(c.count).toLocaleString()}</b>`)
-        .join('<br/>') || '<i>No POI found</i>';
-
-      insightEl.innerHTML = `
-        <div class="muted">Mode: <b>${opts.mode}</b> —
-          ${opts.mode==='time' ? `${opts.minutes} min` : `${opts.distance_km} km`}
+  <div class="page">
+    <header>
+      <nav class="nav">
+        <div class="logo">
+          <div class="logo-mark">B</div>
+          Billboard Analytics
         </div>
-        <div>Profile: <code>${opts.profile}</code></div>
-        <div>Traffic: <code>${opts.traffic}</code></div>
-        <div style="margin-top:6px;">Population: <b>${Number(opts.population||0).toLocaleString()}</b></div>
-        <div style="margin-top:6px;"><b>POI</b>:</div>
-        <div>${list}</div>
-      `;
-    }
-    // === Clear Button ===
-    document.getElementById('clearBtn').addEventListener('click', () => {
-      // Clear isochrone layer
-      if (map.getSource('iso')) {
-        map.getSource('iso').setData({ type: 'FeatureCollection', features: [] });
-      }
+        <div class="nav-links">
+          <a href="#features">Features</a>
+          <a href="#how">How it works</a>
+          <a href="#usecases">Use cases</a>
+          <a href="#stack">Tech stack</a>
+        </div>
+        <div class="nav-actions">
+          <a class="btn btn-primary" href="./frontend/map/index.html">Explore the Map</a>
+        </div>
+      </nav>
+    </header>
 
-    // Reset panel insight
-      insightEl.innerHTML = 'Klik titik billboard untuk melihat isochrone & insight.';
-    });
-  </script>
+    <main>
+      <section class="hero" id="hero">
+        <div class="container hero-grid">
+          <div>
+            <div class="eyebrow">Billboard intelligence</div>
+            <h1>Billboard Location Analysis WebGIS</h1>
+            <p class="lead">
+              Platform WebGIS interaktif untuk menganalisis performa dan kesesuaian lokasi billboard di Bandung.
+              Dibangun menggunakan data demografi, POI, dan kemacetan&mdash;memberikan rekomendasi billboard terbaik
+              untuk setiap segmen audiens.
+            </p>
+            <div class="hero-actions">
+              <a class="btn btn-primary" href="./frontend/map/index.html">Explore the Map</a>
+              <a class="btn btn-ghost" href="#how">Learn How It Works</a>
+            </div>
+            <div class="hero-highlights">
+              <div class="chip"><span class="dot"></span>Heatmap kesesuaian lokasi berbasis data real</div>
+              <div class="chip"><span class="dot"></span>Filter segmen: Youth, Mass Market, Premium, Family, Commuter</div>
+              <div class="chip"><span class="dot"></span>Analisis jangkauan isokron</div>
+              <div class="chip"><span class="dot"></span>Rekomendasi billboard terbaik berdasarkan kategori & lokasi target</div>
+            </div>
+          </div>
+          <div class="hero-panel">
+            <div class="panel-grid">
+              <div class="stat">
+                <div class="label">Primary CTA</div>
+                <div class="value">Explore the Map</div>
+                <div class="muted" style="font-size:13px;">Buka peta interaktif dan titik billboard.</div>
+              </div>
+              <div class="stat">
+                <div class="label">Secondary CTA</div>
+                <div class="value">Learn How It Works</div>
+                <div class="muted" style="font-size:13px;">Pelajari alur analisis dan data sumber.</div>
+              </div>
+              <div class="stat">
+                <div class="label">Key Highlights</div>
+                <div class="muted" style="font-size:13px;">Heatmap, filter segmen, isokron, rekomendasi lokasi.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="features">
+        <div class="container">
+          <div class="badge">⭐ Fitur Utama WebGIS</div>
+          <h2>Semua alat analisis billboard dalam satu platform</h2>
+          <div class="cards">
+            <div class="card">
+              <div class="feature-num">1</div>
+              <h3>Interactive Map View</h3>
+              <p class="muted">Eksplorasi seluruh titik billboard di Bandung secara interaktif. Klik satu titik untuk melihat informasi lengkap seperti ukuran, lokasi, best segment, dan street view.</p>
+            </div>
+            <div class="card">
+              <div class="feature-num">2</div>
+              <h3>Suitability Hexagon Layer</h3>
+              <p class="muted">Aktifkan layer heksagon 500 m untuk melihat area paling cocok untuk kategori iklan tertentu.</p>
+              <ul class="list">
+                <li>Youth & Entertainment</li>
+                <li>Mass Market / FMCG</li>
+                <li>Premium & Lifestyle</li>
+                <li>Family & Household</li>
+                <li>Commuter & Business</li>
+              </ul>
+              <div class="pill-list">
+                <span class="pill">Hexagon berwarna terang menandakan lokasi sangat ideal.</span>
+              </div>
+            </div>
+            <div class="card">
+              <div class="feature-num">3</div>
+              <h3>Billboard Explorer</h3>
+              <p class="muted">Setiap titik billboard dilengkapi detail:</p>
+              <ul class="list">
+                <li>Lokasi & arah hadap</li>
+                <li>Ukuran & spesifikasi</li>
+                <li>Jarak pandang</li>
+                <li>Segmen audiens paling cocok (best_segment)</li>
+                <li>Skor kesesuaian (0&ndash;1)</li>
+              </ul>
+            </div>
+            <div class="card">
+              <div class="feature-num">4</div>
+              <h3>Isochrone Analysis</h3>
+              <p class="muted">Hitung jangkauan waktu tempuh dari suatu titik atau billboard tertentu.</p>
+              <blockquote class="muted" style="margin:10px 0 0;">"Jika audiens bergerak 10 menit, area mana saja yang tercapai?"</blockquote>
+            </div>
+            <div class="card">
+              <div class="feature-num">5</div>
+              <h3>One-Stop Billboard Analysis</h3>
+              <p class="muted">Tool analisis terpadu untuk mencari rekomendasi billboard terbaik:</p>
+              <ul class="list">
+                <li>Pilih segmen audiens</li>
+                <li>Pilih titik lokasi (alamat atau pick on map)</li>
+                <li>Tentukan jumlah billboard (limit)</li>
+                <li>Sistem akan menampilkan billboard terdekat & paling sesuai</li>
+                <li>Sidebar analisis menampilkan ranking, jarak, dan skor kesesuaian</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="how">
+        <div class="container">
+          <div class="badge">🔍 Cara Kerja di Balik WebGIS Ini</div>
+          <h2>Data menyeluruh, proses analitik yang terukur</h2>
+          <div class="grid-2">
+            <div class="card">
+              <h3>Data Digunakan</h3>
+              <ul class="list">
+                <li><strong>Demografi (SES, umur, kepadatan)</strong></li>
+                <li><strong>POI (mall, sekolah, kantor, fasilitas publik, dll.)</strong></li>
+                <li><strong>Titik kemacetan dan jaringan jalan</strong></li>
+                <li><strong>Lokasi billboard aktual</strong></li>
+              </ul>
+            </div>
+            <div class="card">
+              <h3>Proses Analitik</h3>
+              <ol class="list" style="list-style: decimal; padding-left: 18px;">
+                <li>Data spasial dikonversi ke koordinat UTM.</li>
+                <li>Dibuat grid hexagon 500 m (hex_500).</li>
+                <li>Data SES, POI & traffic dihitung per hexagon.</li>
+                <li>Normalisasi dan scoring dilakukan untuk tiap kategori audiens.</li>
+                <li>Billboard memperoleh best segment berdasarkan lokasi hexagon-nya.</li>
+                <li>API kemudian menyediakan endpoint untuk:
+                  <ul class="list">
+                    <li>suitability hexagon by segment</li>
+                    <li>billboard scoring</li>
+                    <li>nearest billboard analysis with segment filtering</li>
+                  </ul>
+                </li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="usecases">
+        <div class="container">
+          <div class="badge">🎯 Siapa yang Cocok Menggunakan WebGIS Ini?</div>
+          <h2>Use Cases</h2>
+          <div class="cards">
+            <div class="card">
+              <h3>1. Brand & Advertiser</h3>
+              <p class="muted">Mencari lokasi billboard yang audiensnya paling sesuai dengan campaign.</p>
+            </div>
+            <div class="card">
+              <h3>2. Media Agency</h3>
+              <p class="muted">Menganalisis rekomendasi titik billboard untuk client berdasarkan segmen dan lokasi target.</p>
+            </div>
+            <div class="card">
+              <h3>3. Media Owner</h3>
+              <p class="muted">Menunjukkan kekuatan inventory billboard secara data-driven kepada calon klien.</p>
+            </div>
+            <div class="card">
+              <h3>4. Planner & Analyst</h3>
+              <p class="muted">Mengidentifikasi area yang high potential untuk penempatan billboard baru.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="screenshots">
+        <div class="container">
+          <div class="badge">Preview the Platform</div>
+          <h2>Preview the Platform</h2>
+          <p class="muted">Lihat bagaimana sistem menampilkan data billboard, peta kesesuaian, dan hasil analisis dalam antarmuka interaktif.</p>
+          <div class="placeholder-grid">
+            <div class="placeholder">Peta Billboard</div>
+            <div class="placeholder">Suitability Heatmap</div>
+            <div class="placeholder">Isochrone Tool</div>
+            <div class="placeholder">Analysis Dashboard</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="stack">
+        <div class="container">
+          <div class="badge">🛠 Teknologi yang Digunakan</div>
+          <h2>Stack yang mendukung analitik spasial end-to-end</h2>
+          <div class="grid-2">
+            <div class="card">
+              <h3>Frontend</h3>
+              <ul class="list">
+                <li>Next.js</li>
+                <li>React</li>
+                <li>MapLibre GL JS</li>
+                <li>Tailwind / Styled Components</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h3>Backend & API</h3>
+              <ul class="list">
+                <li>Node.js</li>
+                <li>Express</li>
+                <li>Turf.js untuk analisis geospasial ringan</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h3>Database</h3>
+              <ul class="list">
+                <li>PostgreSQL + PostGIS (spatial)</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h3>Data Processing</h3>
+              <ul class="list">
+                <li>Python + GeoPandas + Shapely</li>
+                <li>Pandas untuk ETL</li>
+                <li>Jupyter Notebooks untuk analitik</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h3>Deployment</h3>
+              <ul class="list">
+                <li>AWS EC2 (server)</li>
+                <li>AWS RDS (PostgreSQL/PostGIS)</li>
+                <li>Cloudflare / Nginx (opsional)</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="cta">
+        <div class="container">
+          <div class="cta">
+            <h2>Siap Menggunakan WebGIS Billboard Analytics?</h2>
+            <p class="lead" style="margin: 10px auto 20px; max-width: 760px;">
+              Temukan lokasi billboard paling potensial dalam hitungan detik, berbasis data yang akurat dan analisis spasial yang kuat.
+            </p>
+            <div class="hero-actions" style="justify-content:center;">
+              <a class="btn btn-primary" href="./frontend/map/index.html">Open the App</a>
+              <a class="btn btn-ghost" href="mailto:developer@example.com">Contact Developer / Hire for Custom GIS Project</a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      Built for data-driven billboard planning in Bandung. Optimized with spatial analytics and real-world movement patterns.
+    </footer>
+  </div>
 </body>
 </html>

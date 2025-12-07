@@ -39,10 +39,12 @@
 
         <section id="tab-overview" class="pane active">
           <div class="group">
-            <div class="muted">Layers</div>
-            <label><input type="checkbox" id="ly-billboards" checked/> Billboards</label>
-            <label><input type="checkbox" id="ly-iso" checked/> Isochrone</label>
-            <label><input type="checkbox" id="ly-poi" checked/> POI</label>
+            <div class="muted">Cari billboard (ID)</div>
+            <div class="row">
+              <input id="bb-search-overview" type="number" placeholder="contoh: 12" style="width:140px"/>
+              <button id="bb-search-overview-btn">Select</button>
+            </div>
+            <div id="bb-search-overview-status" class="muted"></div>
           </div>
 
           <div class="group">
@@ -73,6 +75,15 @@
         </section>
 
         <section id="tab-isochrone" class="pane">
+          <div class="group">
+            <div class="muted">Cari billboard (ID)</div>
+            <div class="row">
+              <input id="bb-search-iso" type="number" placeholder="contoh: 12" style="width:140px"/>
+              <button id="bb-search-iso-btn">Select</button>
+            </div>
+            <div id="bb-search-iso-status" class="muted"></div>
+          </div>
+
           <div class="row">
             <label>Mode</label>
             <select id="mode">
@@ -108,10 +119,10 @@
           <div class="row" id="row-traffic">
             <label>Traffic</label>
             <select id="traffic" style="width:130px;">
-              <option value="normal">Normal (1.0)</option>
+              <option value="normal" selected>Normal (1.0)</option>
               <option value="light">Rendah (0.75)</option>
               <option value="moderate">Sedang (0.50)</option>
-              <option value="heavy" selected>Padat (0.25)</option>
+              <option value="heavy">Padat (0.25)</option>
             </select>
           </div>
 
@@ -130,7 +141,6 @@
           <div class="muted" style="margin:8px 0 10px;">
             <div><b>Tips:</b></div>
             <div>• <b>Time hanya 5–30 menit (kelipatan 5)</b>.</div>
-            <div>• Toggle <i>avoid highways</i> untuk hasil realistis di dalam kota.</div>
             <div>• Gunakan <i>Traffic</i> untuk pilihan kemacetan.</div>
           </div>
 
